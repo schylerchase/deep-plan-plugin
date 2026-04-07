@@ -97,10 +97,89 @@ If PLAN.md files already exist for this phase, ask the user:
 - Cancel
 </step>
 
-<step name="build_planning_brief">
-## Step 3: Build Planning Brief
+<step name="gather_intel">
+## Step 3: Gather GSD Intelligence
 
-Transform GSD artifacts into a structured planning brief for CE research:
+GSD produces codebase analysis that CE would otherwise rediscover from scratch. Gathering this first gives CE a warm start — it spends tokens on depth instead of discovery.
+
+**Check each source in order. Read what exists, skip what doesn't.**
+
+**3a. Intel files (`.planning/intel/`):**
+
+If the directory exists, read these structured files:
+- `deps.json` → dependency graph with versions, types, usage pointers
+- `files.json` → per-file export inventory with usage counts
+- `apis.json` → public API signatures and deprecation markers
+- `stack.json` → framework/library versions and roles
+- `arch.md` → architecture overview in plain markdown
+
+Check staleness: read `.planning/intel/.last-refresh.json` for `timestamp`. If older than 24 hours, flag: `"⚠️ Intel is {N} days old — CE will verify against live code"`
+
+**3b. Research files (`.planning/research/`):**
+
+If the directory exists, read:
+- `ARCHITECTURE.md` → layers, patterns, data flow (highest CE overlap)
+- `STACK.md` → tech decisions with confidence ratings
+- `STRUCTURE.md` → file/module organization, entry points
+
+Skip these (CE should discover independently for fresh perspective):
+- `CONCERNS.md` — CE finding its own pitfalls is more valuable than echoing known ones
+- `CONVENTIONS.md` — CE should infer from actual code, not pre-digested summaries
+
+**3c. Scope boundaries (always read):**
+- `.planning/REQUIREMENTS.md` → especially "Out of Scope" items (prevents CE from over-researching)
+- `.planning/ROADMAP.md` → phase section only (goals, success criteria, dependencies)
+
+**3d. If nothing exists:**
+
+If neither `.planning/intel/` nor `.planning/research/` exist, suggest:
+```
+No codebase analysis found. For better results, consider running one of:
+  /gsd-scan          — quick analysis (2-3 min)
+  /gsd-map-codebase  — deep analysis (5-10 min)
+
+Continue without pre-analysis? CE will explore from scratch (higher token usage).
+```
+
+Use AskUserQuestion:
+- "Continue anyway" — proceed, CE does full cold-start exploration
+- "Run /gsd-scan first" — launch scan, then return here
+
+**Compose the intelligence summary:**
+
+Build a structured `gsd_knowledge` block from everything gathered:
+```
+## Known Codebase Intelligence (from GSD)
+
+### Architecture
+{from ARCHITECTURE.md or arch.md — layers, key patterns, data flow}
+
+### Dependencies  
+{from deps.json — name, version, role for each relevant dep}
+
+### File Structure
+{from files.json or STRUCTURE.md — key files, their exports, organization}
+
+### API Surface
+{from apis.json — relevant method signatures and stability}
+
+### Tech Stack
+{from stack.json or STACK.md — frameworks, versions, roles}
+
+### Scope Boundaries
+- Out of scope: {from REQUIREMENTS.md}
+- Deferred: {from CONTEXT.md <deferred> section}
+
+### Freshness
+- Intel: {fresh / stale / not available}
+- Research: {available / not available}
+```
+</step>
+
+<step name="build_planning_brief">
+## Step 4: Build Planning Brief
+
+Transform GSD artifacts into a structured planning brief. This brief serves two purposes: (1) it becomes context for CE research, and (2) it frames the implementation units.
 
 From CONTEXT.md:
 - `<domain>` section → **Problem frame** and **scope boundaries**
@@ -110,7 +189,7 @@ From CONTEXT.md:
 - `<specifics>` → **Constraints and examples**
 - `<deferred>` → **Explicit non-goals** (scope boundaries)
 
-From RESEARCH.md (if exists):
+From phase RESEARCH.md (if exists):
 - Technical approach → **Pre-existing research** (do not re-research these topics)
 - Risk analysis → **Known risks** to carry into the plan
 
@@ -122,16 +201,50 @@ From ROADMAP.md phase section:
 Compose a 2-3 paragraph planning brief summarizing:
 1. What the phase delivers and why
 2. User decisions that are locked
-3. Areas where code research is needed
+3. Areas where code research is needed (subtract what GSD intel already covers)
 4. Files and patterns already identified
 </step>
 
 <step name="ce_research">
-## Step 4: CE Research (unless --skip-research)
+## Step 5: CE Research (unless --skip-research)
 
-If `--skip-research` was passed, skip to Step 5. Otherwise:
+If `--skip-research` was passed, skip to Step 6. Otherwise:
 
-Spawn the CE repo-research-analyst with the planning brief:
+**Compose the CE prompt based on what GSD intelligence is available:**
+
+**If GSD intel/research exists (warm start):**
+
+```
+Task compound-engineering:research:repo-research-analyst(
+  "Analyze the codebase for Phase {N}: {phase_name}.
+  
+  Planning brief: {planning_brief}
+  
+  ## Already Known (from GSD analysis — do NOT re-research these)
+  {gsd_knowledge block from Step 3}
+  
+  ## What I Need From You (focus tokens here)
+  1. Deep code tracing: actual function signatures, data flow, and closures 
+     for the seed files — GSD mapped structure but not internals
+  2. Integration points: how the files in scope actually connect at runtime 
+     (imports, callbacks, event chains, shared state)
+  3. Gaps and contradictions: anything the GSD analysis missed or got wrong
+     (it may be stale — verify against live code)
+  4. Test infrastructure: existing test patterns, frameworks, fixtures 
+     relevant to this phase
+  5. Risk signals: build/deploy issues, version conflicts, breaking changes
+     that GSD's static analysis wouldn't catch
+  
+  Seed files to examine: {files from code_context}
+  
+  Do NOT spend tokens on: dependency listing, file tree enumeration, 
+  architecture overview, or tech stack identification — these are already known.
+  
+  Return: code-level findings, integration map, gaps found, test patterns, risks."
+)
+```
+
+**If no GSD intel exists (cold start):**
 
 ```
 Task compound-engineering:research:repo-research-analyst(
@@ -155,15 +268,17 @@ Task compound-engineering:research:repo-research-analyst(
 
 **Merge findings:**
 - New file paths and patterns → add to planning context
-- Gaps not covered by RESEARCH.md → flag as new findings
-- Contradictions with RESEARCH.md → note for user (research may be stale)
+- Gaps not covered by GSD research → flag as new findings
+- Contradictions with GSD intel → note for user (intel may be stale)
 - Dead dependencies, stale docs, unused code → note as bonus findings
 
-Announce: "Research complete. Found {N} relevant files, {M} new findings beyond existing GSD research."
+Announce:
+- Warm start: "Research complete. CE focused on {N} deep findings beyond GSD's existing analysis."
+- Cold start: "Research complete. Found {N} relevant files, {M} findings. (Tip: run /gsd-scan first next time for faster planning.)"
 </step>
 
 <step name="resolve_questions">
-## Step 5: Resolve Planning Questions
+## Step 6: Resolve Planning Questions
 
 Build a question list from:
 1. "Claude's Discretion" items from CONTEXT.md that research can now inform
@@ -179,7 +294,7 @@ Keep user questions focused and minimal (1-2 max). Don't ask about things the us
 </step>
 
 <step name="structure_units">
-## Step 6: Structure Implementation Units
+## Step 7: Structure Implementation Units
 
 Break the phase work into implementation units. Each unit represents one meaningful atomic change.
 
@@ -208,7 +323,7 @@ For each unit, define:
 </step>
 
 <step name="write_plan">
-## Step 7: Write GSD PLAN.md
+## Step 8: Write GSD PLAN.md
 
 Determine the plan number:
 - Check existing `{padded_phase}-*-PLAN.md` files
@@ -325,7 +440,7 @@ Announce: "Plan written to .planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN
 </step>
 
 <step name="feasibility_review">
-## Step 8: Feasibility Review (if --review)
+## Step 9: Feasibility Review (if --review)
 
 If `--review` flag was passed:
 
@@ -362,7 +477,7 @@ Announce: "Feasibility review complete. {N} findings: {high} high, {moderate} mo
 </step>
 
 <step name="handoff">
-## Step 9: Handoff
+## Step 10: Handoff
 
 Display summary:
 
@@ -384,7 +499,9 @@ Display summary:
 
 <success_criteria>
 - [ ] GSD CONTEXT.md was read and transformed into planning context
-- [ ] CE repo-research-analyst ran (unless --skip-research) and findings merged
+- [ ] GSD intel/research artifacts were gathered and composed into warm-start context (if available)
+- [ ] CE repo-research-analyst received targeted prompt (warm-start or cold-start) and findings merged
+- [ ] CE was NOT asked to re-discover information GSD already provided
 - [ ] User was asked only material scoping questions (0-2 max)
 - [ ] Implementation units have file paths, test scenarios, and verification
 - [ ] Output PLAN.md has valid GSD frontmatter with must_haves
