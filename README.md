@@ -6,12 +6,17 @@ Bridges [GSD](https://discord.gg/gsd-plugin) strategic planning with [Compound E
 
 If you already have GSD and Compound Engineering installed:
 
+**macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.sh | bash
 ```
 
-Or manually:
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.ps1 | iex
+```
 
+**Or manually (all platforms):**
 ```bash
 claude plugin add github:schylerchase/deep-plan-plugin
 ```
@@ -26,11 +31,18 @@ deep-plan requires two plugins that must be installed separately (they have thei
 
 If you don't already have Claude Code:
 
+**macOS / Linux:**
 ```bash
 npm install -g @anthropic-ai/claude-code
 ```
 
-Verify: `claude --version`
+**Windows:**
+```powershell
+winget install Anthropic.ClaudeCode
+```
+Requires [Git for Windows](https://git-scm.com/downloads/win) (provides Git Bash, which Claude Code uses internally).
+
+Verify (all platforms): `claude --version`
 
 ### Step 2: Install GSD (Get Shit Done)
 
@@ -42,11 +54,17 @@ GSD handles project strategy — milestones, phases, roadmaps, and execution tra
 2. Follow the install instructions in the `#getting-started` channel
 3. Verify it's installed:
 
+**macOS / Linux:**
 ```bash
 ls ~/.claude/get-shit-done/bin/gsd-tools.cjs
 ```
 
-If that file exists, GSD is installed.
+**Windows (PowerShell):**
+```powershell
+Test-Path "$env:USERPROFILE\.claude\get-shit-done\bin\gsd-tools.cjs"
+```
+
+If that file exists (or returns `True`), GSD is installed.
 
 **What GSD provides to deep-plan:**
 - `CONTEXT.md` — user decisions from `/gsd-discuss-phase`
@@ -64,8 +82,14 @@ claude plugin add github:compound-engineering/claude-code-plugin
 
 Verify:
 
+**macOS / Linux:**
 ```bash
 grep -q "compound-engineering" ~/.claude/plugins/installed_plugins.json && echo "CE installed" || echo "CE not found"
+```
+
+**Windows (PowerShell):**
+```powershell
+if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugins\installed_plugins.json") { "CE installed" } else { "CE not found" }
 ```
 
 **What CE provides to deep-plan:**
@@ -80,8 +104,14 @@ claude plugin add github:schylerchase/deep-plan-plugin
 
 Or use the setup script (checks all prerequisites first):
 
+**macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.ps1 | iex
 ```
 
 ---
