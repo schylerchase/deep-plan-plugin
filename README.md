@@ -136,12 +136,43 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 /gsd-execute-phase 18    <- GSD executes the CE-quality plan
 ```
 
-1. Reads GSD artifacts (CONTEXT.md, RESEARCH.md, ROADMAP.md)
-2. Runs CE's `repo-research-analyst` for code-grounded findings
-3. Asks 0-2 scoping questions informed by GSD's locked decisions
-4. Structures implementation units with file paths, test scenarios, risks
-5. Writes GSD-compatible PLAN.md with verification criteria
-6. Optionally runs `feasibility-reviewer` with `--review` flag
+1. **Reads GSD artifacts** (CONTEXT.md, RESEARCH.md, ROADMAP.md) — extracts locked decisions, scope boundaries, and seed files
+2. **Gathers codebase intelligence** — reads GSD's intel files (`deps.json`, `files.json`, `apis.json`, `arch.md`) and research docs (`ARCHITECTURE.md`, `STACK.md`) so CE doesn't rediscover what GSD already knows
+3. **Runs CE's `repo-research-analyst`** with a targeted prompt — when GSD intel exists, CE skips architecture/dependency discovery and focuses on deep code tracing, integration points, gaps, and risk signals
+4. **Asks 0-2 scoping questions** informed by GSD's locked decisions — only asks about things that materially affect scope or architecture
+5. **Structures implementation units** with file paths, test scenarios, patterns to follow, and verification criteria
+6. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
+7. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
+
+### Warm-Start vs Cold-Start
+
+If you've run `/gsd-scan` or `/gsd-map-codebase` before planning, deep-plan operates in **warm-start mode**: it pre-feeds GSD's analysis to CE, so CE spends tokens on depth (actual function signatures, runtime data flow, integration closures) instead of breadth (file tree enumeration, dependency listing, architecture overview).
+
+Without prior analysis, deep-plan falls back to **cold-start mode**: CE explores from scratch, which works fine but uses more tokens. The skill will suggest running `/gsd-scan` first if no analysis exists.
+
+## What You Get
+
+deep-plan produces a PLAN.md that GSD's executor can run directly. Each plan contains:
+
+**Implementation units** — atomic changes ordered by dependency:
+```
+Unit 1: Extract validation constants
+  Goal: Move hardcoded values to a shared constants file
+  Files: src/constants.ts (create), src/validator.ts (modify)
+  Patterns to follow: see src/config.ts for existing constant patterns
+  Test scenarios:
+    - Happy path: imported constants match original values
+    - Edge case: constants used across multiple modules resolve correctly
+    - Integration: validator produces identical output after extraction
+  Verification: all existing tests pass, no hardcoded values remain in validator
+```
+
+**Must-haves** — machine-checkable assertions for GSD's verifier:
+- `truths` — behavioral assertions ("User can submit form with validation")
+- `artifacts` — file existence with searchable content tokens
+- `key_links` — traceability from source to destination (e.g., "constant defined in X, imported in Y")
+
+**Threat model** — STRIDE analysis when the phase touches auth, user input, or external APIs (omitted otherwise).
 
 ## Why Both GSD and CE?
 
@@ -151,8 +182,10 @@ GSD is great at strategy (what to build, in what order) and CE is great at imple
 |---|---|---|---|
 | **Strategy** | Milestones, phases, ordering | - | GSD |
 | **User decisions** | discuss-phase -> CONTEXT.md | - | GSD |
-| **Code research** | Basic | Deep (file paths, patterns, closures) | CE |
+| **Codebase intel** | File maps, deps, APIs, arch | - | Pre-fed to CE |
+| **Code research** | Basic | Deep (file paths, patterns, closures) | CE (targeted) |
 | **Implementation plan** | Task-level | Unit-level with test scenarios | CE |
+| **Verification** | - | - | Must-haves (truths, artifacts, links) |
 | **Feasibility check** | - | feasibility-reviewer agent | CE |
 | **Execution** | gsd-executor | - | GSD |
 
