@@ -1,7 +1,17 @@
 ---
 name: deep-plan
-description: "Deep implementation planning that bridges GSD context with CE-quality research and planning. Use after /gsd-discuss-phase when you want code-grounded plans with implementation units, test scenarios, and optional feasibility review. Produces GSD-compatible PLAN.md files."
+description: "This skill should be used when the user asks to 'deep plan', 'plan a phase deeply', 'run deep-plan', or wants CE-quality implementation planning after /gsd-discuss-phase. Bridges GSD context with code-grounded research, implementation units, test scenarios, and optional feasibility review. Produces GSD-compatible PLAN.md files."
 argument-hint: "[phase] [--review] [--skip-research]"
+allowed-tools:
+  - Read
+  - Write
+  - Grep
+  - Glob
+  - Bash
+  - TodoWrite
+  - AskUserQuestion
+  - Skill
+  - Task
 ---
 
 # Deep Plan: GSD Context + CE Implementation Planning
