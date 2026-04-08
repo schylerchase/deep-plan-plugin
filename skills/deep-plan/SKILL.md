@@ -314,15 +314,23 @@ Task compound-engineering:research:repo-research-analyst(
 )
 ```
 
-**Merge findings:**
-- New file paths and patterns → add to planning context
-- Gaps not covered by GSD research → flag as new findings
+**Merge and rate findings:**
+
+Tag each CE finding with a confidence level:
+- **HIGH** — verified against live code (file exists, signature confirmed, test ran)
+- **MEDIUM** — inferred from patterns (naming conventions, similar code, dependency graph)
+- **LOW** — speculative (based on docs, comments, or assumptions not yet verified)
+
+Include all findings regardless of confidence. The rating is informational — it helps the user gauge which findings to trust during execution.
+
+- New file paths and patterns → add to planning context (with confidence tag)
+- Gaps not covered by GSD research → flag as new findings (with confidence tag)
 - Contradictions with GSD intel → note for user (intel may be stale)
 - Dead dependencies, stale docs, unused code → note as bonus findings
 
 **Announce (after CE returns):** `── deep-plan [5/{total}] CE research complete ──`
-- Warm: `{N} new findings beyond GSD analysis | {gaps} gaps | {risks} risk signals`
-- Cold: `{N} relevant files | {M} findings (Tip: /gsd-scan before planning = faster)`
+- Warm: `{N} findings ({high} high, {med} medium, {low} low) | {gaps} gaps | {risks} risk signals`
+- Cold: `{N} relevant files | {M} findings ({high}/{med}/{low}) (Tip: /gsd-scan before planning = faster)`
 </step>
 
 <step name="resolve_questions">
@@ -359,8 +367,8 @@ For each unit, define:
 - **Requirements** — which ROADMAP requirements or success criteria it advances
 - **Dependencies** — what must exist first (other units or external)
 - **Files** — repo-relative paths to create, modify, or test
-- **Approach** — key decisions, data flow, integration notes (not code)
-- **Patterns to follow** — existing code to mirror (from research findings)
+- **Approach** — key decisions, data flow, integration notes (not code). Carry forward CE confidence tags on any findings referenced (e.g., "integration via event bus [HIGH]" or "likely uses shared state [MEDIUM]")
+- **Patterns to follow** — existing code to mirror (from research findings, with confidence tag)
 - **Test scenarios** — specific test cases by category:
   - Happy path: core functionality with expected inputs/outputs
   - Edge cases: boundary values, empty inputs, concurrent access
