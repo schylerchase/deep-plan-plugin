@@ -18,7 +18,8 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 
 **Or manually (all platforms):**
 ```bash
-claude plugin add github:schylerchase/deep-plan-plugin
+claude marketplace add github:schylerchase/deep-plan-plugin
+claude plugin install deep-plan
 ```
 
 ---
@@ -96,10 +97,14 @@ if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugin
 - `repo-research-analyst` — deep codebase analysis (file paths, patterns, integration points)
 - `feasibility-reviewer` — catches build/deploy issues before you execute
 
+**What deep-plan provides on its own:**
+- `plan-validator` — validates PLAN.md structure against GSD executor expectations (frontmatter, task XML, must_haves, @-references)
+
 ### Step 4: Install deep-plan
 
 ```bash
-claude plugin add github:schylerchase/deep-plan-plugin
+claude marketplace add github:schylerchase/deep-plan-plugin
+claude plugin install deep-plan
 ```
 
 Or use the setup script (checks all prerequisites first):
@@ -142,7 +147,8 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 4. **Asks 0-2 scoping questions** informed by GSD's locked decisions — only asks about things that materially affect scope or architecture
 5. **Structures implementation units** with file paths, test scenarios, patterns to follow, and verification criteria
 6. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
-7. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
+7. **Validates plan structure** with the `plan-validator` agent — catches frontmatter errors, broken @-references, and invalid task XML before execution
+8. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
 
 ### Progress Reporting
 
@@ -154,27 +160,30 @@ deep-plan brands every step so you always know it's driving, not GSD or CE indep
 ║  GSD context → CE research → Implementation plan  ║
 ╚═══════════════════════════════════════════════════╝
 
-── deep-plan [2/10] Loading GSD context ──────────────
+── deep-plan [2/11] Loading GSD context ──────────────
 CONTEXT.md ✓ | RESEARCH.md ✓ | ROADMAP.md (phase section) ✓
 
-── deep-plan [3/10] Gathering codebase intelligence ──
+── deep-plan [3/11] Gathering codebase intelligence ──
 Intel: deps.json ✓ files.json ✓ apis.json ✗ arch.md ✓ (3/5 files, fresh)
 Research: ARCHITECTURE.md ✓ STACK.md ✓ (warm start)
 
-── deep-plan [5/10] CE deep research (warm start) ────
+── deep-plan [5/11] CE deep research (warm start) ────
 Pre-fed: architecture overview, 47 deps, 12 file exports
 CE focusing on: integration points, gaps in GSD analysis
 Launching repo-research-analyst...
 
-── deep-plan [5/10] CE research complete ─────────────
+── deep-plan [5/11] CE research complete ─────────────
 4 new findings beyond GSD analysis | 1 gap | 2 risk signals
 
-── deep-plan [8/10] Plan written ─────────────────────
+── deep-plan [8/11] Plan written ─────────────────────
 .planning/phases/18-extract-auth/18-01-PLAN.md
 Units: 4 | Test scenarios: 16 | Must-haves: 8 truths, 6 artifacts, 4 links
+
+── deep-plan [9/11] Validation complete ──────────────
+Result: PASS | Errors: 0 | Warnings: 0
 ```
 
-Each step also creates a task in Claude Code's task list, so you can track progress even when text scrolls by. The step counter adapts: `[N/10]` with `--review`, `[N/9]` without.
+Each step also creates a task in Claude Code's task list, so you can track progress even when text scrolls by. The step counter adapts: `[N/11]` with `--review`, `[N/10]` without.
 
 ### Warm-Start vs Cold-Start
 
@@ -218,6 +227,7 @@ GSD is great at strategy (what to build, in what order) and CE is great at imple
 | **Code research** | Basic | Deep (file paths, patterns, closures) | CE (targeted) |
 | **Implementation plan** | Task-level | Unit-level with test scenarios | CE |
 | **Verification** | - | - | Must-haves (truths, artifacts, links) |
+| **Plan validation** | - | - | plan-validator agent (format + structure) |
 | **Feasibility check** | - | feasibility-reviewer agent | CE |
 | **Execution** | gsd-executor | - | GSD |
 

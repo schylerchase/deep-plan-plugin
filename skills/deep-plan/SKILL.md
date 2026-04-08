@@ -49,7 +49,7 @@ Deep-plan must be visually distinguishable from GSD and CE throughout execution.
 
     ── deep-plan [{current}/{total}] {Step Name} ──────────
 
-Total = 10 with `--review`, 9 without (step 9 skipped).
+Total = 11 with `--review`, 10 without (feasibility review skipped).
 
 **Detail lines** — 1-2 lines after each header showing what was found/done. Use ✓/✗ for availability.
 
@@ -99,7 +99,7 @@ This way users can just type `/deep-plan` with no arguments and the skill figure
 **After phase confirmed:**
 1. Display the opening banner (see progress protocol)
 2. Use TaskCreate to create one task per remaining step (prefix each with "Deep Plan:"), e.g., "Deep Plan: Load GSD context", "Deep Plan: CE deep research", etc.
-3. Total tasks = 8 (steps 2-9) without `--review`, 9 (steps 2-10) with `--review`
+3. Total tasks = 9 (steps 2-10) without `--review`, 10 (steps 2-11) with `--review`
 </step>
 
 <step name="load_gsd_context">
@@ -502,10 +502,51 @@ After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMAR
 Detail: `.planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN.md` — `Units: {N} | Test scenarios: {N} | Must-haves: {truths} truths, {artifacts} artifacts, {links} links`
 </step>
 
-<step name="feasibility_review">
-## Step 9: Feasibility Review (if --review)
+<step name="plan_validation">
+## Step 9: Plan Validation
 
-**Announce (before review):** `── deep-plan [9/{total}] Feasibility review ──`
+**Announce:** `── deep-plan [9/{total}] Validating plan structure ──`
+Detail: `Spawning plan-validator against PLAN.md...`
+
+This step always runs. It catches format errors that would break gsd-executor — frontmatter schema, task XML structure, must_haves validity, and @-reference resolution.
+
+Spawn the plan-validator agent:
+
+```
+Task deep-plan:plan-validator(
+  "Validate this PLAN.md for GSD executor compatibility.
+  
+  Plan: {path to written PLAN.md}
+  Project root: {project root path}
+  
+  Check all 6 dimensions: frontmatter schema, must_haves structure, 
+  task XML, @-references, consistency, and executor compatibility.
+  
+  Return the validation report with PASS/WARN/FAIL result."
+)
+```
+
+**On FAIL (any ERROR findings):**
+- Display each error with its location
+- Auto-fix what can be fixed (missing fields with sensible defaults, malformed YAML)
+- For unfixable errors, ask the user: revise the plan or proceed at risk
+- If revising, update the PLAN.md and re-run validation
+
+**On WARN:**
+- Display warnings briefly
+- Continue to next step (warnings don't block)
+
+**On PASS:**
+- Display: `✓ Plan structure validated — {N} checks passed`
+
+**Announce (after validation):** `── deep-plan [9/{total}] Validation complete ──`
+Detail: `Result: {PASS/WARN/FAIL} | Errors: {N} | Warnings: {N}`
+</step>
+
+<step name="feasibility_review">
+## Step 10: Feasibility Review (if --review)
+
+**Announce (before review):** `── deep-plan [10/{total}] Feasibility review ──`
 Detail: `Launching feasibility-reviewer against PLAN.md...`
 
 If `--review` flag was passed:
@@ -539,14 +580,14 @@ For MODERATE/LOW findings:
 - Summarize briefly
 - Note any that should be addressed during execution
 
-**Announce (after review):** `── deep-plan [9/{total}] Feasibility review complete ──`
+**Announce (after review):** `── deep-plan [10/{total}] Feasibility review complete ──`
 Detail: `{N} findings: {high} HIGH | {moderate} MODERATE | {low} LOW`
 </step>
 
 <step name="handoff">
-## Step 10: Handoff
+## Step 11: Handoff
 
-**Announce:** `── deep-plan [10/{total}] Complete ──`
+**Announce:** `── deep-plan [11/{total}] Complete ──`
 Mark all remaining Deep Plan tasks as completed.
 
 Display summary:
@@ -559,6 +600,7 @@ Display summary:
 **Units:** {count} implementation units
 **Test scenarios:** {count} across all units
 **Must-haves:** {truths_count} truths, {artifacts_count} artifacts, {links_count} key links
+**Validation:** {PASS/WARN/FAIL} ({error_count} errors, {warning_count} warnings)
 {if review: **Feasibility:** {findings_summary}}
 
 **Next:** Run `/gsd-execute-phase {N}` to execute this plan.
@@ -576,6 +618,7 @@ Display summary:
 - [ ] Implementation units have file paths, test scenarios, and verification
 - [ ] Output PLAN.md has valid GSD frontmatter with must_haves
 - [ ] PLAN.md is parseable by gsd-executor
+- [ ] Plan-validator agent ran and returned PASS or WARN (errors were fixed before proceeding)
 - [ ] Feasibility review ran (if --review) and findings presented
 - [ ] Every step displayed a branded `── deep-plan [N/M]` header with detail lines
 - [ ] TaskCreate tasks were created upfront and marked completed per step
