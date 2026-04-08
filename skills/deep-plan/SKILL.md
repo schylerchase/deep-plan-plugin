@@ -9,6 +9,8 @@ allowed-tools:
   - Glob
   - Bash
   - TodoWrite
+  - TaskCreate
+  - TaskUpdate
   - AskUserQuestion
   - Skill
   - Task
@@ -30,6 +32,33 @@ Use this instead of `/gsd-plan-phase` when you want deeper code analysis before 
 </when_to_use>
 
 <process>
+
+<progress_protocol>
+## Progress Reporting Protocol
+
+Deep-plan must be visually distinguishable from GSD and CE throughout execution. Follow these patterns at every step.
+
+**Opening banner** — Display after phase is confirmed (end of Step 1):
+
+    ╔═══════════════════════════════════════════════════╗
+    ║  Deep Plan — Phase {N}: {phase_name}              ║
+    ║  GSD context → CE research → Implementation plan  ║
+    ╚═══════════════════════════════════════════════════╝
+
+**Step headers** — Display at the start of every step:
+
+    ── deep-plan [{current}/{total}] {Step Name} ──────────
+
+Total = 10 with `--review`, 9 without (step 9 skipped).
+
+**Detail lines** — 1-2 lines after each header showing what was found/done. Use ✓/✗ for availability.
+
+**Task tracking** — After phase confirmation, use TaskCreate to create all step tasks upfront (prefixed "Deep Plan:"). Mark each `in_progress` when starting, `completed` when done.
+
+**Subagent attribution** — Before CE agent calls, state what deep-plan pre-fed and what CE will focus on. After return, summarize new findings count.
+
+See `references/progress-templates.md` for full output examples per step.
+</progress_protocol>
 
 <step name="parse_args">
 ## Step 1: Parse Arguments and Auto-Detect Phase
@@ -66,10 +95,18 @@ Use AskUserQuestion with options:
 - If the detected phase has no CONTEXT.md, add: "Run /gsd-discuss-phase {N} first" — launch discuss-phase, then return here
 
 This way users can just type `/deep-plan` with no arguments and the skill figures out what to do.
+
+**After phase confirmed:**
+1. Display the opening banner (see progress protocol)
+2. Use TaskCreate to create one task per remaining step (prefix each with "Deep Plan:"), e.g., "Deep Plan: Load GSD context", "Deep Plan: CE deep research", etc.
+3. Total tasks = 8 (steps 2-9) without `--review`, 9 (steps 2-10) with `--review`
 </step>
 
 <step name="load_gsd_context">
 ## Step 2: Load GSD Phase Context
+
+**Announce:** `── deep-plan [2/{total}] Loading GSD context ──`
+After reading, detail: `CONTEXT.md {✓/✗} | RESEARCH.md {✓/✗} | ROADMAP.md {✓/✗}`
 
 ```bash
 INIT=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" init plan-phase "$PHASE" 2>/dev/null)
@@ -99,6 +136,9 @@ If PLAN.md files already exist for this phase, ask the user:
 
 <step name="gather_intel">
 ## Step 3: Gather GSD Intelligence
+
+**Announce:** `── deep-plan [3/{total}] Gathering codebase intelligence ──`
+After gathering, detail: `Intel: {found_list} ({N}/5 files, {fresh/stale/none}) | Research: {found_list} ({warm/cold} start)`
 
 GSD produces codebase analysis that CE would otherwise rediscover from scratch. Gathering this first gives CE a warm start — it spends tokens on depth instead of discovery.
 
@@ -179,6 +219,9 @@ Build a structured `gsd_knowledge` block from everything gathered:
 <step name="build_planning_brief">
 ## Step 4: Build Planning Brief
 
+**Announce:** `── deep-plan [4/{total}] Building planning brief ──`
+After composing, detail: `Locked decisions: {N} | Open questions: {N} | Seed files: {N}`
+
 Transform GSD artifacts into a structured planning brief. This brief serves two purposes: (1) it becomes context for CE research, and (2) it frames the implementation units.
 
 From CONTEXT.md:
@@ -207,6 +250,11 @@ Compose a 2-3 paragraph planning brief summarizing:
 
 <step name="ce_research">
 ## Step 5: CE Research (unless --skip-research)
+
+**Announce:** `── deep-plan [5/{total}] CE deep research ({warm/cold} start) ──`
+Before launching CE, state what was pre-fed from GSD and what CE will focus on:
+- Warm: `Pre-fed: {summary — e.g., architecture, 47 deps, 12 exports} → CE focusing on: integration points, gaps, risks`
+- Cold: `No GSD intel to pre-feed → CE exploring from scratch`
 
 If `--skip-research` was passed, skip to Step 6. Otherwise:
 
@@ -272,13 +320,16 @@ Task compound-engineering:research:repo-research-analyst(
 - Contradictions with GSD intel → note for user (intel may be stale)
 - Dead dependencies, stale docs, unused code → note as bonus findings
 
-Announce:
-- Warm start: "Research complete. CE focused on {N} deep findings beyond GSD's existing analysis."
-- Cold start: "Research complete. Found {N} relevant files, {M} findings. (Tip: run /gsd-scan first next time for faster planning.)"
+**Announce (after CE returns):** `── deep-plan [5/{total}] CE research complete ──`
+- Warm: `{N} new findings beyond GSD analysis | {gaps} gaps | {risks} risk signals`
+- Cold: `{N} relevant files | {M} findings (Tip: /gsd-scan before planning = faster)`
 </step>
 
 <step name="resolve_questions">
 ## Step 6: Resolve Planning Questions
+
+**Announce:** `── deep-plan [6/{total}] Resolving planning questions ──`
+After resolving, detail: `Auto-resolved: {N} | Asking user: {N} | Deferred: {N}`
 
 Build a question list from:
 1. "Claude's Discretion" items from CONTEXT.md that research can now inform
@@ -295,6 +346,9 @@ Keep user questions focused and minimal (1-2 max). Don't ask about things the us
 
 <step name="structure_units">
 ## Step 7: Structure Implementation Units
+
+**Announce:** `── deep-plan [7/{total}] Structuring implementation units ──`
+After structuring, detail: `Units: {N} | Test scenarios: {N} | Must-haves: {truths}/{artifacts}/{links}`
 
 Break the phase work into implementation units. Each unit represents one meaningful atomic change.
 
@@ -436,11 +490,15 @@ After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMAR
 </output>
 ```
 
-Announce: "Plan written to .planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN.md"
+**Announce:** `── deep-plan [8/{total}] Plan written ──`
+Detail: `.planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN.md` — `Units: {N} | Test scenarios: {N} | Must-haves: {truths} truths, {artifacts} artifacts, {links} links`
 </step>
 
 <step name="feasibility_review">
 ## Step 9: Feasibility Review (if --review)
+
+**Announce (before review):** `── deep-plan [9/{total}] Feasibility review ──`
+Detail: `Launching feasibility-reviewer against PLAN.md...`
 
 If `--review` flag was passed:
 
@@ -473,11 +531,15 @@ For MODERATE/LOW findings:
 - Summarize briefly
 - Note any that should be addressed during execution
 
-Announce: "Feasibility review complete. {N} findings: {high} high, {moderate} moderate, {low} low."
+**Announce (after review):** `── deep-plan [9/{total}] Feasibility review complete ──`
+Detail: `{N} findings: {high} HIGH | {moderate} MODERATE | {low} LOW`
 </step>
 
 <step name="handoff">
 ## Step 10: Handoff
+
+**Announce:** `── deep-plan [10/{total}] Complete ──`
+Mark all remaining Deep Plan tasks as completed.
 
 Display summary:
 
@@ -507,4 +569,6 @@ Display summary:
 - [ ] Output PLAN.md has valid GSD frontmatter with must_haves
 - [ ] PLAN.md is parseable by gsd-executor
 - [ ] Feasibility review ran (if --review) and findings presented
+- [ ] Every step displayed a branded `── deep-plan [N/M]` header with detail lines
+- [ ] TaskCreate tasks were created upfront and marked completed per step
 </success_criteria>
