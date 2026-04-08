@@ -144,6 +144,38 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 6. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
 7. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
 
+### Progress Reporting
+
+deep-plan brands every step so you always know it's driving, not GSD or CE independently:
+
+```
+╔═══════════════════════════════════════════════════╗
+║  Deep Plan — Phase 18: Extract Auth Middleware     ║
+║  GSD context → CE research → Implementation plan  ║
+╚═══════════════════════════════════════════════════╝
+
+── deep-plan [2/10] Loading GSD context ──────────────
+CONTEXT.md ✓ | RESEARCH.md ✓ | ROADMAP.md (phase section) ✓
+
+── deep-plan [3/10] Gathering codebase intelligence ──
+Intel: deps.json ✓ files.json ✓ apis.json ✗ arch.md ✓ (3/5 files, fresh)
+Research: ARCHITECTURE.md ✓ STACK.md ✓ (warm start)
+
+── deep-plan [5/10] CE deep research (warm start) ────
+Pre-fed: architecture overview, 47 deps, 12 file exports
+CE focusing on: integration points, gaps in GSD analysis
+Launching repo-research-analyst...
+
+── deep-plan [5/10] CE research complete ─────────────
+4 new findings beyond GSD analysis | 1 gap | 2 risk signals
+
+── deep-plan [8/10] Plan written ─────────────────────
+.planning/phases/18-extract-auth/18-01-PLAN.md
+Units: 4 | Test scenarios: 16 | Must-haves: 8 truths, 6 artifacts, 4 links
+```
+
+Each step also creates a task in Claude Code's task list, so you can track progress even when text scrolls by. The step counter adapts: `[N/10]` with `--review`, `[N/9]` without.
+
 ### Warm-Start vs Cold-Start
 
 If you've run `/gsd-scan` or `/gsd-map-codebase` before planning, deep-plan operates in **warm-start mode**: it pre-feeds GSD's analysis to CE, so CE spends tokens on depth (actual function signatures, runtime data flow, integration closures) instead of breadth (file tree enumeration, dependency listing, architecture overview).
