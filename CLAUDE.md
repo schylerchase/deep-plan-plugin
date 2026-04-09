@@ -21,7 +21,9 @@ A Claude Code plugin that bridges GSD's strategic phase context with CE-style im
 Claude Code plugin — no runtime, no build step, no package manager. Structure only:
 
 - **Manifest:** `.claude-plugin/plugin.json` — required for plugin discovery
-- **Skill:** `skills/deep-plan/SKILL.md` — single-file skill with YAML frontmatter
+- **Skills:** `skills/deep-plan/SKILL.md` — implementation planning skill
+- **Skills:** `skills/frontend-design/SKILL.md` — UX-first frontend design methodology
+- **Commands:** `commands/ux-review.md` — UX review with severity-rated findings and fix workflow
 - **References:** `skills/deep-plan/references/` — progressive disclosure for detailed content
 - **Full research:** `.planning/research/STACK.md` — complete stack analysis with confidence ratings
 <!-- GSD:stack-end -->
@@ -32,7 +34,7 @@ Claude Code plugin — no runtime, no build step, no package manager. Structure 
 - Skill body uses imperative form ("Extract the phase" not "You should extract")
 - SKILL.md body target: 1,500-2,000 words; move detail to `references/`
 - File naming: kebab-case for everything except `SKILL.md` (uppercase)
-- No `commands/` directory — skills only
+- Commands use same frontmatter conventions as skills (`name`, `description`, `allowed-tools`)
 <!-- GSD:conventions-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->

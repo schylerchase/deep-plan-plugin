@@ -1,18 +1,24 @@
 {
   "name": "deep-plan",
-  "version": "0.2.0",
-  "description": "Bridges GSD strategic context with CE-quality implementation planning. Produces code-grounded plans with implementation units, test scenarios, and feasibility review.",
+  "version": "0.3.0",
+  "description": "Bridges GSD strategic context with CE-quality implementation planning. Produces code-grounded plans with implementation units, test scenarios, feasibility review, and UX-first frontend evaluation.",
   "author": {
     "name": "schylerchase"
   },
   "repository": "https://github.com/schylerchase/deep-plan-plugin",
   "license": "MIT",
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "commands": "./commands/",
   "keywords": [
     "gsd",
     "planning",
     "ce",
     "implementation",
     "compound-engineering",
-    "feasibility"
+    "feasibility",
+    "ux",
+    "frontend",
+    "accessibility"
   ]
 }

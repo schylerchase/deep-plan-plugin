@@ -99,6 +99,9 @@ if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugin
 
 **What deep-plan provides on its own:**
 - `plan-validator` — validates PLAN.md structure against GSD executor expectations (frontmatter, task XML, must_haves, @-references)
+- `ux-reviewer` — evaluates frontend code for UX quality (state design, accessibility, interaction patterns, visual design)
+- `frontend-design` — UX-first design methodology skill (information architecture, state design, accessibility, performance)
+- `/ux-review` — command that runs the reviewer and offers to fix findings
 
 ### Step 4: Install deep-plan
 
@@ -123,6 +126,8 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 
 ## Usage
 
+### Implementation Planning
+
 ```bash
 # After /gsd-discuss-phase has generated CONTEXT.md:
 /deep-plan              # Auto-detects next phase to plan
@@ -130,6 +135,21 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 /deep-plan 18 --review  # Plan + feasibility review
 /deep-plan 18 --skip-research  # Skip CE codebase research (faster)
 ```
+
+### UX Review
+
+```bash
+/ux-review                    # Review frontend files in current directory
+/ux-review src/components/    # Review a specific directory
+/ux-review src/pages/App.tsx  # Review a specific file
+```
+
+Scans frontend code for UX issues across six dimensions — state design, accessibility, interaction patterns, information architecture, visual design, and performance. Produces a severity-rated findings report (Critical/Warning/Minor) with numbered IDs, then offers to fix them:
+
+- **Fix all** — applies every fix in priority order
+- **Critical only** — fixes only the critical issues
+- **Pick specific** — you choose which IDs to fix (e.g., C1, W3, M2)
+- **Skip** — just the report, no changes
 
 ## How It Works
 
@@ -228,6 +248,7 @@ GSD is great at strategy (what to build, in what order) and CE is great at imple
 | **Implementation plan** | Task-level | Unit-level with test scenarios | CE |
 | **Verification** | - | - | Must-haves (truths, artifacts, links) |
 | **Plan validation** | - | - | plan-validator agent (format + structure) |
+| **UX review** | - | - | ux-reviewer agent + frontend-design skill |
 | **Feasibility check** | - | feasibility-reviewer agent | CE |
 | **Execution** | gsd-executor | - | GSD |
 
