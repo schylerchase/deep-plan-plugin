@@ -7,9 +7,6 @@
   },
   "repository": "https://github.com/schylerchase/deep-plan-plugin",
   "license": "MIT",
-  "skills": "./skills/",
-  "agents": "./agents/",
-  "commands": "./commands/",
   "keywords": [
     "gsd",
     "planning",

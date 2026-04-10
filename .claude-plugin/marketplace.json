@@ -1,6 +1,5 @@
 {
   "name": "deep-plan-plugin",
-  "description": "Bridges GSD strategic context with CE-quality implementation planning. Produces code-grounded plans with implementation units, test scenarios, and feasibility review.",
   "owner": {
     "name": "schylerchase"
   },
@@ -12,7 +11,7 @@
       "name": "deep-plan",
       "source": "./",
       "description": "Bridges GSD strategic context with CE-quality implementation planning. Produces code-grounded plans with implementation units, test scenarios, and feasibility review.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "schylerchase"
       },
