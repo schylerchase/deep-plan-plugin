@@ -18,30 +18,28 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 
 **Or manually (all platforms):**
 ```bash
-claude plugin marketplace add schylerchase/deep-plan-plugin
-claude plugin install deep-plan
+claude plugin marketplace add https://github.com/schylerchase/deep-plan-plugin.git
+claude plugin install deep-plan@deep-plan-plugin
 ```
 
 ### Troubleshooting
 
-**Windows — "my install is broken, just fix it" (nuclear option)**
-
-If a previous install failed partway through, or you're hitting stale marketplace errors, SSH host-key failures, or zombie marketplace cache dirs from a failed earlier attempt — run the reset script. It scrubs leftover marketplace state, removes stale registrations, trusts GitHub's host key, and reinstalls CE + deep-plan from canonical HTTPS URLs in one shot.
-
-```powershell
-irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/reset-install.ps1 | iex
-```
-
-After it completes, close and reopen Claude Code, then run `/deep-plan-doctor` inside a session to verify everything wired up correctly.
-
-**Windows — `No ED25519 host key is known for github.com` (manual fix)**
+**Windows — `No ED25519 host key is known for github.com`**
 
 Fresh Windows installs often hit this because SSH has never connected to GitHub before. Two fixes:
 
-**Option A — Use the explicit HTTPS URL (easiest):**
+**Option A — Use explicit HTTPS URLs (works for both plugins):**
+
+For Compound Engineering:
+```bash
+claude plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin.git
+claude plugin install compound-engineering@compound-engineering-plugin
+```
+
+For deep-plan:
 ```bash
 claude plugin marketplace add https://github.com/schylerchase/deep-plan-plugin
-claude plugin install deep-plan
+claude plugin install deep-plan@deep-plan-plugin
 ```
 
 **Option B — Trust GitHub's SSH host key (PowerShell):**
@@ -50,6 +48,51 @@ ssh-keyscan -t ed25519,rsa github.com >> "$env:USERPROFILE\.ssh\known_hosts"
 ```
 
 Then re-run the install.
+
+**Windows — Resetting a broken install (manual cleanup)**
+
+If a previous install attempt failed partway through and you're seeing stale marketplace errors, zombie marketplace cache directories, or SSH host-key failures from earlier attempts, run these steps in a regular (non-admin) PowerShell window. They're safe to re-run — "not installed" and "not found" errors during cleanup are expected and harmless.
+
+**1. Close Claude Code completely.** All windows. Check Task Manager for leftover `claude` processes and kill any survivors — marketplace cache directories can be locked by a running instance.
+
+**2. Uninstall any stale CE and deep-plan plugins:**
+```powershell
+claude plugin uninstall compound-engineering
+claude plugin uninstall deep-plan
+```
+
+**3. Remove stale marketplace registrations:**
+```powershell
+claude plugin marketplace remove compound-engineering-plugin
+claude plugin marketplace remove compound-engineering-claude-code-plugin
+claude plugin marketplace remove deep-plan-plugin
+```
+
+**4. Delete leftover marketplace cache directories** from previous failed clones:
+```powershell
+Remove-Item -Recurse -Force "$env:USERPROFILE\.claude\plugins\marketplaces\compound-engineering-claude-code-plugin" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:USERPROFILE\.claude\plugins\marketplaces\compound-engineering-plugin" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:USERPROFILE\.claude\plugins\marketplaces\deep-plan-plugin" -ErrorAction SilentlyContinue
+```
+
+**5. Reinstall Compound Engineering from the canonical HTTPS URL:**
+```powershell
+claude plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin.git
+claude plugin install compound-engineering@compound-engineering-plugin
+```
+
+**6. Reinstall deep-plan from the canonical HTTPS URL:**
+```powershell
+claude plugin marketplace add https://github.com/schylerchase/deep-plan-plugin.git
+claude plugin install deep-plan@deep-plan-plugin
+```
+
+**7. Verify both are registered:**
+```powershell
+claude plugin list
+```
+
+**8. Open a fresh Claude Code session and run `/deep-plan-doctor`** to validate the install chain and flag anything missing.
 
 ---
 
@@ -107,8 +150,8 @@ If that file exists (or returns `True`), GSD is installed.
 CE provides code-grounded research agents and feasibility review. deep-plan uses CE's subagents to analyze your actual codebase before writing the plan.
 
 ```bash
-claude plugin marketplace add EveryInc/compound-engineering-plugin
-claude plugin install compound-engineering
+claude plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin.git
+claude plugin install compound-engineering@compound-engineering-plugin
 ```
 
 Verify:
@@ -132,12 +175,13 @@ if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugin
 - `ux-reviewer` — evaluates frontend code for UX quality (state design, accessibility, interaction patterns, visual design)
 - `frontend-design` — UX-first design methodology skill (information architecture, state design, accessibility, performance)
 - `/ux-review` — command that runs the reviewer and offers to fix findings
+- `/deep-plan-doctor` — diagnostic command that verifies install health and project readiness, with auto-fix for fixable issues
 
 ### Step 4: Install deep-plan
 
 ```bash
-claude plugin marketplace add schylerchase/deep-plan-plugin
-claude plugin install deep-plan
+claude plugin marketplace add https://github.com/schylerchase/deep-plan-plugin.git
+claude plugin install deep-plan@deep-plan-plugin
 ```
 
 Or use the setup script (checks all prerequisites first):
@@ -180,6 +224,18 @@ Scans frontend code for UX issues across six dimensions — state design, access
 - **Critical only** — fixes only the critical issues
 - **Pick specific** — you choose which IDs to fix (e.g., C1, W3, M2)
 - **Skip** — just the report, no changes
+
+### Install Diagnostics
+
+```bash
+/deep-plan-doctor              # Full health check (install + project)
+/deep-plan-doctor --install    # Install-only checks
+/deep-plan-doctor --project    # Project-only checks
+```
+
+Runs install checks (Claude Code version, GSD installed, CE installed, deep-plan agents/skills discoverable) and project checks (ROADMAP.md parses, phase detection, CONTEXT.md/RESEARCH.md freshness, warm-start intel status). Prints a structured remediation report with critical-vs-warning classification and offers to auto-fix fixable issues (marketplace add, plugin install) only after explicit approval.
+
+Run it when deep-plan feels broken, before running `/deep-plan` for the first time in a new project, or after updating any plugin.
 
 ## How It Works
 
