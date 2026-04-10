@@ -24,7 +24,17 @@ claude plugin install deep-plan
 
 ### Troubleshooting
 
-**Windows — `No ED25519 host key is known for github.com`**
+**Windows — "my install is broken, just fix it" (nuclear option)**
+
+If a previous install failed partway through, or you're hitting stale marketplace errors, SSH host-key failures, or zombie marketplace cache dirs from a failed earlier attempt — run the reset script. It scrubs leftover marketplace state, removes stale registrations, trusts GitHub's host key, and reinstalls CE + deep-plan from canonical HTTPS URLs in one shot.
+
+```powershell
+irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/reset-install.ps1 | iex
+```
+
+After it completes, close and reopen Claude Code, then run `/deep-plan-doctor` inside a session to verify everything wired up correctly.
+
+**Windows — `No ED25519 host key is known for github.com` (manual fix)**
 
 Fresh Windows installs often hit this because SSH has never connected to GitHub before. Two fixes:
 
