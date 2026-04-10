@@ -52,7 +52,8 @@ if ((Test-Path $pluginsFile) -and (Select-String -Quiet "compound-engineering" $
     Fail "Compound Engineering not found"
     Write-Host ""
     Write-Host "    Install CE with:"
-    Write-Host "      claude plugin add github:compound-engineering/claude-code-plugin"
+    Write-Host "      claude plugin marketplace add EveryInc/compound-engineering-plugin"
+    Write-Host "      claude plugin install compound-engineering"
     Write-Host ""
     $errors++
 }
@@ -72,7 +73,10 @@ Info "Installing deep-plan plugin..."
 Write-Host ""
 
 try {
-    claude plugin add github:schylerchase/deep-plan-plugin
+    claude plugin marketplace add schylerchase/deep-plan-plugin
+    if ($LASTEXITCODE -ne 0) { throw "marketplace add failed" }
+    claude plugin install deep-plan
+    if ($LASTEXITCODE -ne 0) { throw "plugin install failed" }
     Write-Host ""
     Pass "deep-plan installed"
 } catch {
@@ -80,7 +84,8 @@ try {
     Fail "Installation failed"
     Write-Host ""
     Write-Host "    Try manually:"
-    Write-Host "      claude plugin add github:schylerchase/deep-plan-plugin"
+    Write-Host "      claude plugin marketplace add schylerchase/deep-plan-plugin"
+    Write-Host "      claude plugin install deep-plan"
     Write-Host ""
     exit 1
 }

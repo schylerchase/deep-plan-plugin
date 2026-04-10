@@ -1,0 +1,32 @@
+# .gitignore — deep-plan-plugin
+
+# GSD planning artifacts — dev-internal, not for public distribution.
+# Contains project spec, roadmap, research docs, and phase state that
+# are part of the author's development workflow but not useful to
+# community users installing the plugin.
+.planning/
+
+# Claude Code session state — per-machine, not shareable
+.claude/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor state
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node / env files (defense-in-depth — even though this plugin has no
+# runtime dependencies, future additions should not leak credentials)
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log

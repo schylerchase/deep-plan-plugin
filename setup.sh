@@ -58,7 +58,8 @@ else
     fail "Compound Engineering not found"
     echo ""
     echo "    Install CE with:"
-    echo "      claude plugin add github:compound-engineering/claude-code-plugin"
+    echo "      claude plugin marketplace add EveryInc/compound-engineering-plugin"
+    echo "      claude plugin install compound-engineering"
     echo ""
     errors=$((errors + 1))
 fi
@@ -77,7 +78,7 @@ echo ""
 info "Installing deep-plan plugin..."
 echo ""
 
-if claude plugin add github:schylerchase/deep-plan-plugin; then
+if claude plugin marketplace add schylerchase/deep-plan-plugin && claude plugin install deep-plan; then
     echo ""
     pass "deep-plan installed"
 else
@@ -85,7 +86,8 @@ else
     fail "Installation failed"
     echo ""
     echo "    Try manually:"
-    echo "      claude plugin add github:schylerchase/deep-plan-plugin"
+    echo "      claude plugin marketplace add schylerchase/deep-plan-plugin"
+    echo "      claude plugin install deep-plan"
     echo ""
     exit 1
 fi

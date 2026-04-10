@@ -1,6 +1,6 @@
 # deep-plan — Claude Code Plugin
 
-Bridges [GSD](https://discord.gg/gsd-plugin) strategic planning with [Compound Engineering](https://github.com/compound-engineering/claude-code-plugin) implementation planning. Catches build-breaking issues before execution starts.
+Bridges [GSD](https://discord.gg/gsd-plugin) strategic planning with [Compound Engineering](https://github.com/EveryInc/compound-engineering-plugin) implementation planning. Catches build-breaking issues before execution starts.
 
 ## Quick Install
 
@@ -18,9 +18,28 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 
 **Or manually (all platforms):**
 ```bash
-claude marketplace add github:schylerchase/deep-plan-plugin
+claude plugin marketplace add schylerchase/deep-plan-plugin
 claude plugin install deep-plan
 ```
+
+### Troubleshooting
+
+**Windows — `No ED25519 host key is known for github.com`**
+
+Fresh Windows installs often hit this because SSH has never connected to GitHub before. Two fixes:
+
+**Option A — Use the explicit HTTPS URL (easiest):**
+```bash
+claude plugin marketplace add https://github.com/schylerchase/deep-plan-plugin
+claude plugin install deep-plan
+```
+
+**Option B — Trust GitHub's SSH host key (PowerShell):**
+```powershell
+ssh-keyscan -t ed25519,rsa github.com >> "$env:USERPROFILE\.ssh\known_hosts"
+```
+
+Then re-run the install.
 
 ---
 
@@ -78,7 +97,8 @@ If that file exists (or returns `True`), GSD is installed.
 CE provides code-grounded research agents and feasibility review. deep-plan uses CE's subagents to analyze your actual codebase before writing the plan.
 
 ```bash
-claude plugin add github:compound-engineering/claude-code-plugin
+claude plugin marketplace add EveryInc/compound-engineering-plugin
+claude plugin install compound-engineering
 ```
 
 Verify:
@@ -106,7 +126,7 @@ if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugin
 ### Step 4: Install deep-plan
 
 ```bash
-claude marketplace add github:schylerchase/deep-plan-plugin
+claude plugin marketplace add schylerchase/deep-plan-plugin
 claude plugin install deep-plan
 ```
 
