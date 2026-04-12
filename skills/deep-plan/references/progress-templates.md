@@ -12,44 +12,47 @@ Phase 18 with GSD intel available and feasibility review enabled:
 ║  GSD context → CE research → Implementation plan  ║
 ╚═══════════════════════════════════════════════════╝
 
-── deep-plan [2/11] Loading GSD context ──────────────
+── deep-plan [1/12] Caveman setup ───────────────
+Caveman: {detected/not detected} | Overrides: {N signals mapped}
+
+── deep-plan [3/12] Loading GSD context ──────────────
 CONTEXT.md ✓ | RESEARCH.md ✓ | ROADMAP.md (phase section) ✓
 
-── deep-plan [3/11] Gathering codebase intelligence ──
+── deep-plan [4/12] Gathering codebase intelligence ──
 Intel: deps.json ✓ files.json ✓ apis.json ✗ arch.md ✓ (3/5 files, fresh)
 Research: ARCHITECTURE.md ✓ STACK.md ✓ (warm start)
 
-── deep-plan [4/11] Building planning brief ──────────
+── deep-plan [5/12] Building planning brief ──────────
 Locked decisions: 4 | Open questions: 2 | Seed files: 6
 
-── deep-plan [5/11] CE deep research (warm start) ────
+── deep-plan [6/12] CE deep research (warm start) ────
 Pre-fed: architecture overview, 47 deps, 12 file exports
 CE focusing on: integration points, code internals, gaps in GSD analysis
 Launching repo-research-analyst...
 
-── deep-plan [5/11] CE research complete ─────────────
+── deep-plan [6/12] CE research complete ─────────────
 4 new findings beyond GSD analysis | 1 gap | 2 risk signals
 
-── deep-plan [6/11] Resolving planning questions ─────
+── deep-plan [7/12] Resolving planning questions ─────
 Auto-resolved: 2 | Asking user: 1 | Deferred: 0
 
-── deep-plan [7/11] Structuring implementation units ──
+── deep-plan [8/12] Structuring implementation units ──
 Units: 4 | Test scenarios: 16 | Must-haves: 8/6/4
 
-── deep-plan [8/11] Plan written ─────────────────────
+── deep-plan [9/12] Plan written ─────────────────────
 .planning/phases/18-extract-auth/18-01-PLAN.md
 Units: 4 | Test scenarios: 16 | Must-haves: 8 truths, 6 artifacts, 4 links
 
-── deep-plan [9/11] Validation complete ──────────────
+── deep-plan [10/12] Validation complete ──────────────
 Result: PASS | Errors: 0 | Warnings: 0
 
-── deep-plan [10/11] Feasibility review ──────────────
+── deep-plan [11/12] Feasibility review ──────────────
 Launching feasibility-reviewer against PLAN.md...
 
-── deep-plan [10/11] Feasibility review complete ─────
+── deep-plan [11/12] Feasibility review complete ─────
 3 findings: 1 HIGH | 1 MODERATE | 1 LOW
 
-── deep-plan [11/11] Complete ────────────────────────
+── deep-plan [12/12] Complete ────────────────────────
 
 ## Deep Plan Complete
 
@@ -74,44 +77,48 @@ Phase 5 with no prior analysis:
 ║  GSD context → CE research → Implementation plan  ║
 ╚═══════════════════════════════════════════════════╝
 
-── deep-plan [2/10] Loading GSD context ──────────────
+── deep-plan [1/11] Caveman setup ───────────────
+Caveman: {detected/not detected} | Overrides: {N signals mapped}
+
+── deep-plan [3/11] Loading GSD context ──────────────
 CONTEXT.md ✓ | RESEARCH.md ✗ | ROADMAP.md (phase section) ✓
 
-── deep-plan [3/10] Gathering codebase intelligence ──
+── deep-plan [4/11] Gathering codebase intelligence ──
 Intel: not available | Research: not available (cold start)
 Suggested: /gsd-scan for faster future planning
 
-── deep-plan [4/10] Building planning brief ──────────
+── deep-plan [5/11] Building planning brief ──────────
 Locked decisions: 2 | Open questions: 3 | Seed files: 4
 
-── deep-plan [5/10] CE deep research (cold start) ────
+── deep-plan [6/11] CE deep research (cold start) ────
 No GSD intel to pre-feed — CE exploring from scratch
 Launching repo-research-analyst...
 
-── deep-plan [5/10] CE research complete ─────────────
+── deep-plan [6/11] CE research complete ─────────────
 23 relevant files | 12 findings (Tip: /gsd-scan before planning = faster)
 
-── deep-plan [6/10] Resolving planning questions ─────
+── deep-plan [7/11] Resolving planning questions ─────
 Auto-resolved: 3 | Asking user: 0 | Deferred: 1
 
-── deep-plan [7/10] Structuring implementation units ──
+── deep-plan [8/11] Structuring implementation units ──
 Units: 3 | Test scenarios: 9 | Must-haves: 5/4/3
 
-── deep-plan [8/10] Plan written ─────────────────────
+── deep-plan [9/11] Plan written ─────────────────────
 .planning/phases/05-user-prefs-api/05-01-PLAN.md
 Units: 3 | Test scenarios: 9 | Must-haves: 5 truths, 4 artifacts, 3 links
 
-── deep-plan [9/10] Validation complete ──────────────
+── deep-plan [10/11] Validation complete ──────────────
 Result: PASS | Errors: 0 | Warnings: 1
 
-── deep-plan [10/10] Complete ────────────────────────
+── deep-plan [11/11] Complete ────────────────────────
 ```
 
 ## Task Tracking Pattern
 
-After phase confirmation in Step 1, create these tasks:
+After phase confirmation in Step 2, create these tasks:
 
 ```
+TaskCreate: "Deep Plan: Caveman setup"
 TaskCreate: "Deep Plan: Load GSD context"
 TaskCreate: "Deep Plan: Gather codebase intelligence"
 TaskCreate: "Deep Plan: Build planning brief"
@@ -127,6 +134,7 @@ TaskCreate: "Deep Plan: Handoff"
 As each step starts, mark it `in_progress`. When done, mark `completed`.
 
 Use `activeForm` on TaskCreate for spinner text, e.g.:
+- `activeForm: "Detecting caveman plugin"`
 - `activeForm: "Loading GSD context"`
 - `activeForm: "Running CE deep research"`
 - `activeForm: "Writing PLAN.md"`
