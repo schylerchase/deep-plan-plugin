@@ -1,8 +1,8 @@
-# Caveman Rule v1 — Deep-Plan Integration
+# Caveman Rule v1+v2 — Deep-Plan Integration
 
 ## Status
 
-**Version: v1 (simplified, session-01 informed)**
+**Version: v1+v2 (v1 simplified rules + v2 signal overrides)**
 Supersedes v0 (see git history for the old 11-stage table).
 
 ## The Rule
@@ -44,23 +44,43 @@ The v0 table encoded things Claude already does organically (or wants to do). v1
 - **Eval check:** Fixture asserts the body (post-frontmatter) contains article words at a minimum density (at least 5 of `the`, `an`, `is`, `are`, `was`, `were`). Loose threshold — smoke test, not stylistic judgment.
 - **If this ever fails:** investigate Claude's Write-tool behavior change. It's a regression signal for artifact quality, not a caveman rule to fix.
 
+## v2 Signals
+
+Signal-based overrides activate when deep-plan encounters specific interaction types where caveman compression would destroy critical content. Each signal unconditionally switches to full prose (off mode) for its scope. Enforcement prefers output instructions over explicit Skill(caveman off) invocations (per v1 pattern where Claude's Write-tool heuristic produces prose structurally).
+
+### Signal: HIGH Feasibility Finding
+- **Trigger:** Feasibility review (Step 11) returns one or more HIGH-severity findings.
+- **Detection heuristic:** The feasibility reviewer output contains a finding tagged HIGH or CRITICAL. Any HIGH finding activates this signal.
+- **Override mode:** off (full prose)
+- **Scope:** The entire feasibility review section output. If any HIGH finding exists, the whole review drops caveman compression -- not per-finding granularity.
+
+### Signal: AskUserQuestion Block
+- **Trigger:** Deep-plan presents a question to the user via AskUserQuestion or equivalent prompt.
+- **Detection heuristic:** The current output is a question block with a header, question text, and option labels/descriptions. This includes Step 7 (resolve questions), Step 2 (phase confirmation), and any mid-run clarification.
+- **Override mode:** off (full prose)
+- **Scope:** The full question block -- header, question text, option labels, AND option descriptions. Zero ambiguity on user-facing choices.
+
+### Signal: Mid-Flight Scope Pivot
+- **Trigger:** A blocking finding or user decision requires changing the planned scope mid-execution.
+- **Detection heuristic:** Deep-plan presents reasoning about why the current scope should change, offers alternative approaches, or asks the user to choose between scope options after discovering a conflict. Distinguished from a normal AskUserQuestion by the presence of conditional reasoning ("Given X, I'd recommend Y because Z").
+- **Override mode:** off (full prose)
+- **Scope:** All reasoning, tradeoff analysis, and recommendation text for the pivot interaction. The user is making a critical scope decision; all reasoning must be clear.
+
 ## Fixtures
 
-Two fixtures in `skills/deep-plan/fixtures/caveman/`:
+Five fixtures in `skills/deep-plan/fixtures/caveman/`:
 
 - `01-chat-fragment.md` — fixture_type: chat. Represents caveman-style chat output. Smoke test only.
 - `02-write-artifact.md` — fixture_type: artifact_write. Represents a `.md` file body. Asserts prose via article-word count.
+- `03-feasibility-high.md` — fixture_type: feasibility_high. Represents a HIGH feasibility finding output. Asserts prose via article-word count (v2 signal override).
+- `04-askuserquestion-block.md` — fixture_type: askuserquestion_block. Represents a user-facing question block. Asserts prose via article-word count (v2 signal override).
+- `05-mid-flight-pivot.md` — fixture_type: mid_flight_pivot. Represents a scope pivot interaction. Asserts prose via article-word count (v2 signal override).
 
 ## Versioning
 
 - **v0** — 11-row stage→mode table with hard override at step 8. Over-engineered per-stage assertions with no enforcement. Invalidated by the first tuning session. See git history of this file.
 - **v1** (this doc) — 2 rules. Global mode + HARD artifact override. Matches observed deep-plan behavior.
-- **v2** (future) — signal-based overrides for observed edge cases. Candidates from session 01 observations:
-  - Feasibility review HIGH findings — may benefit from explicit `off` mode
-  - User-facing question labels (AskUserQuestion) — may benefit from `off` for maximum clarity on selectable options
-  - Mid-flight pivot after a blocking finding — not in any v0 stage, observed as a distinct interaction type
-
-Only promote a v1 candidate to v2 if a real session shows the current behavior hurts. Do not pre-optimize.
+- **v2** (this doc) — 3 signal-based overrides for edge cases where prose is critical. See `## v2 Signals` above.
 
 ## Related follow-ups (NOT in this rule — separate work)
 
@@ -76,7 +96,7 @@ These are tracked in the local tuning notes at `.planning/caveman-tuning/` (giti
 
 - Fixtures: `skills/deep-plan/fixtures/caveman/`
 - Eval script: `tests/eval-caveman-rule.sh`
-- Deep-plan stages: `skills/deep-plan/SKILL.md` (steps 1-11)
+- Deep-plan stages: `skills/deep-plan/SKILL.md` (steps 1-12)
 - README section: `Optional: caveman (Token Compression)`
 
 ## Credits
