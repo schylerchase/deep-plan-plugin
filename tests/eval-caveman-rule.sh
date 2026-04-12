@@ -11,6 +11,12 @@
 #     - chat: smoke test — frontmatter parses, body non-empty
 #     - artifact_write: prose detection — body contains >=5 article words
 #
+#   v2 (signal overrides):
+#     Three signal-based override types reuse the prose assertion:
+#       - feasibility_high: HIGH finding forces prose
+#       - askuserquestion_block: user question forces prose
+#       - mid_flight_pivot: scope pivot forces prose
+#
 # Dependencies: bash, grep, awk, find. No jq, no yq, no python.
 #
 # Exit codes:
@@ -137,6 +143,20 @@ while IFS= read -r fixture; do
         fail_count=$((fail_count + 1))
       fi
       ;;
+    feasibility_high|askuserquestion_block|mid_flight_pivot)
+      # v2 signal override: prose assertion (same as artifact_write per D-09)
+      if is_prose "$body"; then
+        article_count=$(printf '%s' "$body" | grep -oE '\b(the|The|an|An|is|are|was|were)\b' | wc -l | tr -d ' ')
+        printf '[PASS] %-24s type=%-20s hard=%-5s  (prose detected, %d articles >= %d threshold)\n' \
+          "$name" "$fixture_type" "$hard" "$article_count" "$PROSE_ARTICLE_THRESHOLD"
+        pass_count=$((pass_count + 1))
+      else
+        article_count=$(printf '%s' "$body" | grep -oE '\b(the|The|an|An|is|are|was|were)\b' | wc -l | tr -d ' ')
+        printf '[FAIL] %-24s type=%-20s hard=%-5s  (prose NOT detected, %d articles < %d threshold -- signal override VIOLATED)\n' \
+          "$name" "$fixture_type" "$hard" "$article_count" "$PROSE_ARTICLE_THRESHOLD"
+        fail_count=$((fail_count + 1))
+      fi
+      ;;
     *)
       printf '[FAIL] %-24s type=%s  hard=%-5s  unknown fixture_type\n' \
         "$name" "$fixture_type" "$hard"
@@ -148,7 +168,7 @@ done <<< "$fixture_list"
 
 # ── Summary block ──
 echo "─────────────────────────────────"
-echo "Caveman Rule Eval (v1)"
+echo "Caveman Rule Eval (v1+v2)"
 echo "Fixtures: $total"
 echo "Passed:   $pass_count"
 echo "Failed:   $fail_count"
