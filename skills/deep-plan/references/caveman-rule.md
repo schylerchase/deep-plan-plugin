@@ -77,3 +77,17 @@ These are tracked in the local tuning notes at `.planning/caveman-tuning/` (giti
 - Fixtures: `skills/deep-plan/fixtures/caveman/`
 - Eval script: `tests/eval-caveman-rule.sh`
 - Deep-plan stages: `skills/deep-plan/SKILL.md` (steps 1-11)
+- README section: `Optional: caveman (Token Compression)`
+
+## Credits
+
+Caveman is a Claude Code plugin by Julius Brussee, MIT-licensed. Source repository: `JuliusBrussee/caveman` on GitHub (`https://github.com/JuliusBrussee/caveman`).
+
+This rule doc describes how deep-plan **respects** caveman's modes. Deep-plan does not bundle, modify, or redistribute any caveman code. Users install caveman separately via Claude Code's plugin manager:
+
+```bash
+claude plugin marketplace add JuliusBrussee/caveman
+claude plugin install caveman@caveman
+```
+
+Attribution satisfies MIT license conditions. No caveman source files are vendored into deep-plan — the integration is purely behavioral (deep-plan promises to behave correctly in caveman's presence).

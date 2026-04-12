@@ -31,6 +31,10 @@ Use this instead of `/gsd-plan-phase` when you want deeper code analysis before 
 - When you want optional feasibility review to catch deployment/build issues
 </when_to_use>
 
+<compatibility>
+Deep-plan respects any active caveman mode during execution. Chat output follows the user's caveman compression level; PLAN.md and other `.md` artifacts always stay in full prose regardless of caveman mode. See `references/caveman-rule.md` for the full v1 rule specification. Caveman is an optional third-party plugin by Julius Brussee, MIT-licensed — install separately via `claude plugin install caveman@caveman`.
+</compatibility>
+
 <process>
 
 <progress_protocol>

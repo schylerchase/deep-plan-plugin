@@ -346,6 +346,19 @@ GSD is great at strategy (what to build, in what order) and CE is great at imple
 cargo install rtk
 ```
 
+## Optional: caveman (Token Compression)
+
+[caveman](https://github.com/JuliusBrussee/caveman) by Julius Brussee is a Claude Code plugin that compresses chat output by ~75% without losing technical substance. Not required, but deep-plan is caveman-aware.
+
+When caveman is installed and active, deep-plan chat output follows whatever compression mode you've set (`/caveman lite`, `/caveman full`, `/caveman ultra`, or `/caveman off`). Written PLAN.md and any other `.md` artifacts always stay in full prose regardless of compression level — your plans never come out as fragments.
+
+```bash
+claude plugin marketplace add JuliusBrussee/caveman
+claude plugin install caveman@caveman
+```
+
+See [`skills/deep-plan/references/caveman-rule.md`](skills/deep-plan/references/caveman-rule.md) for the full v1 rule specification describing how deep-plan respects caveman's modes. Caveman is MIT-licensed. deep-plan does not bundle, modify, or redistribute caveman — install it separately via the commands above.
+
 ## License
 
 MIT
