@@ -32,7 +32,11 @@ Use this instead of `/gsd-plan-phase` when you want deeper code analysis before 
 </when_to_use>
 
 <compatibility>
-Deep-plan respects any active caveman mode during execution. Chat output follows the user's caveman compression level; PLAN.md and other `.md` artifacts always stay in full prose regardless of caveman mode. See `references/caveman-rule.md` for the full v1 rule specification. Caveman is an optional third-party plugin by Julius Brussee, MIT-licensed — install separately via `claude plugin install caveman@caveman`.
+Chat output follows the user's caveman level; `.md` artifacts always use full prose.
+
+Step 1 detects caveman and builds an override map for three v2 signals forcing full prose (see `references/caveman-rule.md`).
+
+Caveman: optional plugin by Julius Brussee (MIT), installed separately.
 </compatibility>
 
 <process>
@@ -42,7 +46,7 @@ Deep-plan respects any active caveman mode during execution. Chat output follows
 
 Deep-plan must be visually distinguishable from GSD and CE throughout execution. Follow these patterns at every step.
 
-**Opening banner** — Display after phase is confirmed (end of Step 1):
+**Opening banner** — Display after phase is confirmed (end of Step 2):
 
     ╔═══════════════════════════════════════════════════╗
     ║  Deep Plan — Phase {N}: {phase_name}              ║
@@ -53,7 +57,7 @@ Deep-plan must be visually distinguishable from GSD and CE throughout execution.
 
     ── deep-plan [{current}/{total}] {Step Name} ──────────
 
-Total = 11 with `--review`, 10 without (feasibility review skipped).
+Total = 12 with `--review`, 11 without (feasibility review skipped).
 
 **Detail lines** — 1-2 lines after each header showing what was found/done. Use ✓/✗ for availability.
 
@@ -64,8 +68,16 @@ Total = 11 with `--review`, 10 without (feasibility review skipped).
 See `references/progress-templates.md` for full output examples per step.
 </progress_protocol>
 
+<step name="caveman_setup">
+## Step 1: Caveman Setup
+
+If caveman is installed, read `references/caveman-rule.md` and build an override map for three v2 signals requiring full prose: HIGH feasibility findings, AskUserQuestion blocks, mid-flight scope pivots. If absent, skip silently.
+
+Enforced at: questions (Steps 2, 7), pivots (Step 8), feasibility (Step 11).
+</step>
+
 <step name="parse_args">
-## Step 1: Parse Arguments and Auto-Detect Phase
+## Step 2: Parse Arguments and Auto-Detect Phase
 
 Extract from the invocation:
 - `phase` — the phase number (e.g., "18", "11.1")
@@ -103,13 +115,13 @@ This way users can just type `/deep-plan` with no arguments and the skill figure
 **After phase confirmed:**
 1. Display the opening banner (see progress protocol)
 2. Use TaskCreate to create one task per remaining step (prefix each with "Deep Plan:"), e.g., "Deep Plan: Load GSD context", "Deep Plan: CE deep research", etc.
-3. Total tasks = 9 (steps 2-10) without `--review`, 10 (steps 2-11) with `--review`
+3. Total tasks = 10 (steps 2-11) without `--review`, 11 (steps 2-12) with `--review`
 </step>
 
 <step name="load_gsd_context">
-## Step 2: Load GSD Phase Context
+## Step 3: Load GSD Phase Context
 
-**Announce:** `── deep-plan [2/{total}] Loading GSD context ──`
+**Announce:** `── deep-plan [3/{total}] Loading GSD context ──`
 After reading, detail: `CONTEXT.md {✓/✗} | RESEARCH.md {✓/✗} | ROADMAP.md {✓/✗}`
 
 ```bash
@@ -139,9 +151,9 @@ If PLAN.md files already exist for this phase, ask the user:
 </step>
 
 <step name="gather_intel">
-## Step 3: Gather GSD Intelligence
+## Step 4: Gather GSD Intelligence
 
-**Announce:** `── deep-plan [3/{total}] Gathering codebase intelligence ──`
+**Announce:** `── deep-plan [4/{total}] Gathering codebase intelligence ──`
 After gathering, detail: `Intel: {found_list} ({N}/5 files, {fresh/stale/none}) | Research: {found_list} ({warm/cold} start)`
 
 GSD produces codebase analysis that CE would otherwise rediscover from scratch. Gathering this first gives CE a warm start — it spends tokens on depth instead of discovery.
@@ -221,9 +233,9 @@ Build a structured `gsd_knowledge` block from everything gathered:
 </step>
 
 <step name="build_planning_brief">
-## Step 4: Build Planning Brief
+## Step 5: Build Planning Brief
 
-**Announce:** `── deep-plan [4/{total}] Building planning brief ──`
+**Announce:** `── deep-plan [5/{total}] Building planning brief ──`
 After composing, detail: `Locked decisions: {N} | Open questions: {N} | Seed files: {N}`
 
 Transform GSD artifacts into a structured planning brief. This brief serves two purposes: (1) it becomes context for CE research, and (2) it frames the implementation units.
@@ -253,9 +265,9 @@ Compose a 2-3 paragraph planning brief summarizing:
 </step>
 
 <step name="ce_research">
-## Step 5: CE Research (unless --skip-research)
+## Step 6: CE Research (unless --skip-research)
 
-**Announce:** `── deep-plan [5/{total}] CE deep research ({warm/cold} start) ──`
+**Announce:** `── deep-plan [6/{total}] CE deep research ({warm/cold} start) ──`
 Before launching CE, state what was pre-fed from GSD and what CE will focus on:
 - Warm: `Pre-fed: {summary — e.g., architecture, 47 deps, 12 exports} → CE focusing on: integration points, gaps, risks`
 - Cold: `No GSD intel to pre-feed → CE exploring from scratch`
@@ -332,15 +344,15 @@ Include all findings regardless of confidence. The rating is informational — i
 - Contradictions with GSD intel → note for user (intel may be stale)
 - Dead dependencies, stale docs, unused code → note as bonus findings
 
-**Announce (after CE returns):** `── deep-plan [5/{total}] CE research complete ──`
+**Announce (after CE returns):** `── deep-plan [6/{total}] CE research complete ──`
 - Warm: `{N} findings ({high} high, {med} medium, {low} low) | {gaps} gaps | {risks} risk signals`
 - Cold: `{N} relevant files | {M} findings ({high}/{med}/{low}) (Tip: /gsd-scan before planning = faster)`
 </step>
 
 <step name="resolve_questions">
-## Step 6: Resolve Planning Questions
+## Step 7: Resolve Planning Questions
 
-**Announce:** `── deep-plan [6/{total}] Resolving planning questions ──`
+**Announce:** `── deep-plan [7/{total}] Resolving planning questions ──`
 After resolving, detail: `Auto-resolved: {N} | Asking user: {N} | Deferred: {N}`
 
 Build a question list from:
@@ -354,12 +366,14 @@ For each question:
 - If the answer depends on runtime behavior → defer to implementation
 
 Keep user questions focused and minimal (1-2 max). Don't ask about things the user already decided in CONTEXT.md.
+
+*Caveman override: If override map active (Step 1), output question blocks in full prose.*
 </step>
 
 <step name="structure_units">
-## Step 7: Structure Implementation Units
+## Step 8: Structure Implementation Units
 
-**Announce:** `── deep-plan [7/{total}] Structuring implementation units ──`
+**Announce:** `── deep-plan [8/{total}] Structuring implementation units ──`
 After structuring, detail: `Units: {N} | Test scenarios: {N} | Must-haves: {truths}/{artifacts}/{links}`
 
 Break the phase work into implementation units. Each unit represents one meaningful atomic change.
@@ -386,10 +400,12 @@ For each unit, define:
 - `key_links` → traceability from source to destination with search patterns
 
 **Ordering:** Dependencies first. Pure functions/constants before hooks before components. Infrastructure before features.
+
+*Caveman override: If scope pivot detected (Step 1 override map), output pivot reasoning in full prose.*
 </step>
 
 <step name="write_plan">
-## Step 8: Write GSD PLAN.md
+## Step 9: Write GSD PLAN.md
 
 Determine the plan number:
 - Check existing `{padded_phase}-*-PLAN.md` files
@@ -502,14 +518,14 @@ After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMAR
 </output>
 ```
 
-**Announce:** `── deep-plan [8/{total}] Plan written ──`
+**Announce:** `── deep-plan [9/{total}] Plan written ──`
 Detail: `.planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN.md` — `Units: {N} | Test scenarios: {N} | Must-haves: {truths} truths, {artifacts} artifacts, {links} links`
 </step>
 
 <step name="plan_validation">
-## Step 9: Plan Validation
+## Step 10: Plan Validation
 
-**Announce:** `── deep-plan [9/{total}] Validating plan structure ──`
+**Announce:** `── deep-plan [10/{total}] Validating plan structure ──`
 Detail: `Spawning plan-validator against PLAN.md...`
 
 This step always runs. It catches format errors that would break gsd-executor — frontmatter schema, task XML structure, must_haves validity, and @-reference resolution.
@@ -543,14 +559,14 @@ Task deep-plan:plan-validator(
 **On PASS:**
 - Display: `✓ Plan structure validated — {N} checks passed`
 
-**Announce (after validation):** `── deep-plan [9/{total}] Validation complete ──`
+**Announce (after validation):** `── deep-plan [10/{total}] Validation complete ──`
 Detail: `Result: {PASS/WARN/FAIL} | Errors: {N} | Warnings: {N}`
 </step>
 
 <step name="feasibility_review">
-## Step 10: Feasibility Review (if --review)
+## Step 11: Feasibility Review (if --review)
 
-**Announce (before review):** `── deep-plan [10/{total}] Feasibility review ──`
+**Announce (before review):** `── deep-plan [11/{total}] Feasibility review ──`
 Detail: `Launching feasibility-reviewer against PLAN.md...`
 
 If `--review` flag was passed:
@@ -584,14 +600,16 @@ For MODERATE/LOW findings:
 - Summarize briefly
 - Note any that should be addressed during execution
 
-**Announce (after review):** `── deep-plan [10/{total}] Feasibility review complete ──`
+**Announce (after review):** `── deep-plan [11/{total}] Feasibility review complete ──`
 Detail: `{N} findings: {high} HIGH | {moderate} MODERATE | {low} LOW`
+
+*Caveman override: If any HIGH finding present (Step 1 override map), output entire feasibility review in full prose.*
 </step>
 
 <step name="handoff">
-## Step 11: Handoff
+## Step 12: Handoff
 
-**Announce:** `── deep-plan [11/{total}] Complete ──`
+**Announce:** `── deep-plan [12/{total}] Complete ──`
 Mark all remaining Deep Plan tasks as completed.
 
 Display summary:
