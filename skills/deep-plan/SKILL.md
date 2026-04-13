@@ -79,42 +79,48 @@ Enforced at: questions (Steps 2, 7), pivots (Step 8), feasibility (Step 11).
 <step name="parse_args">
 ## Step 2: Parse Arguments and Auto-Detect Phase
 
+**Before anything else in this step, check prerequisites:**
+
+Run three checks via Bash (run all three, collect failures, report together):
+1. GSD installed: `test -f "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs"`
+2. CE installed: `claude plugin list 2>&1 | grep -q compound-engineering`
+3. `.planning/` exists: `test -d .planning/`
+
+If any failed, print every failure with its fix command, then stop.
+
+Error format (only print lines for missing prerequisites):
+```
+deep-plan requires GSD. Install: see GSD Discord #getting-started
+deep-plan requires Compound Engineering. Install: claude plugin marketplace add EveryInc/compound-engineering-plugin && claude plugin install compound-engineering
+No .planning/ directory found. Run /gsd-new-project to initialize.
+```
+
+If all pass, continue silently.
+
 Extract from the invocation:
 - `phase` — the phase number (e.g., "18", "11.1")
-- `--review` flag — if present, run feasibility review after planning
-- `--skip-research` flag — if present, skip CE repo-research-analyst
+- `--review` flag — run feasibility review after planning
+- `--skip-research` flag — skip CE repo-research-analyst
 
 **If no phase argument provided, auto-detect:**
 
 ```bash
-# Get full roadmap analysis with disk status
 ROADMAP_STATE=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" roadmap analyze 2>/dev/null)
 ```
 
-From the roadmap analysis, find the best candidate phase by priority:
-1. **Phase with CONTEXT.md but no PLAN.md** — ready for deep-plan right now
-2. **Phase with no CONTEXT.md and no PLAN.md** — needs discuss-phase first, suggest it
+Find the best candidate phase by priority:
+1. **Has CONTEXT.md but no PLAN.md** — ready for deep-plan now
+2. **No CONTEXT.md, no PLAN.md** — needs discuss-phase first
 3. **Current phase from STATE.md** — fallback
 
-Present the detected phase to the user:
-
-```
-Detected: Phase {N} — {phase_name}
-  Status: {has context / needs context / has plans already}
-
-Use this phase? (or specify a different one)
-```
-
-Use AskUserQuestion with options:
+Present the detected phase and use AskUserQuestion with options:
 - "Yes, plan Phase {N}" — proceed with detected phase
 - "Different phase" — ask which one
-- If the detected phase has no CONTEXT.md, add: "Run /gsd-discuss-phase {N} first" — launch discuss-phase, then return here
-
-This way users can just type `/deep-plan` with no arguments and the skill figures out what to do.
+- If no CONTEXT.md: "Run /gsd-discuss-phase {N} first" — launch discuss-phase, then return
 
 **After phase confirmed:**
 1. Display the opening banner (see progress protocol)
-2. Use TaskCreate to create one task per remaining step (prefix each with "Deep Plan:"), e.g., "Deep Plan: Load GSD context", "Deep Plan: CE deep research", etc.
+2. TaskCreate one task per remaining step (prefix "Deep Plan:"), e.g., "Deep Plan: Load GSD context"
 3. Total tasks = 10 (steps 2-11) without `--review`, 11 (steps 2-12) with `--review`
 </step>
 
