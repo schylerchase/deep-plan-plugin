@@ -111,7 +111,12 @@ ROADMAP_STATE=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" roadmap ana
 Find the best candidate phase by priority:
 1. **Has CONTEXT.md but no PLAN.md** — ready for deep-plan now
 2. **No CONTEXT.md, no PLAN.md** — needs discuss-phase first
-3. **Current phase from STATE.md** — fallback
+
+If no candidate matches either priority, all phases already have plans:
+```
+All phases in roadmap have plans. Nothing to plan. Run /gsd-add-phase to add new work.
+```
+Stop execution.
 
 Present the detected phase and use AskUserQuestion with options:
 - "Yes, plan Phase {N}" — proceed with detected phase
