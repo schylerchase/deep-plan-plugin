@@ -130,7 +130,17 @@ All phases in roadmap have plans. Nothing to plan. Run /gsd-add-phase to add new
 ```
 Stop execution.
 
-Present the detected phase and use AskUserQuestion with options:
+**If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
+```
+1. Yes, plan Phase {N}
+2. Different phase
+3. Run /gsd-discuss-phase {N} first
+```
+Type a number to choose:
+
+Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
+
+**Otherwise**, use AskUserQuestion with options:
 - "Yes, plan Phase {N}" — proceed with detected phase
 - "Different phase" — ask which one
 - If no CONTEXT.md: "Run /gsd-discuss-phase {N} first" — launch discuss-phase, then return
@@ -167,10 +177,22 @@ Stop.
 - `.planning/REQUIREMENTS.md` for requirement definitions
 
 **Check for existing plans:**
-If PLAN.md files already exist for this phase, ask the user:
-- Add another plan (increment plan number)
-- Replan from scratch (overwrite)
-- Cancel
+If PLAN.md files already exist for this phase:
+
+**If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
+```
+1. Add another plan (increment plan number)
+2. Replan from scratch (overwrite)
+3. Cancel
+```
+Type a number to choose:
+
+Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
+
+**Otherwise**, use AskUserQuestion with options:
+- "Add another plan" (increment plan number)
+- "Replan from scratch" (overwrite)
+- "Cancel"
 </step>
 
 <step name="gather_intel">
@@ -220,7 +242,16 @@ No codebase analysis found. For better results, consider running one of:
 Continue without pre-analysis? CE will explore from scratch (higher token usage).
 ```
 
-Use AskUserQuestion:
+**If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
+```
+1. Continue anyway
+2. Run /gsd-scan first
+```
+Type a number to choose:
+
+Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
+
+**Otherwise**, use AskUserQuestion with options:
 - "Continue anyway" — proceed, CE does full cold-start exploration
 - "Run /gsd-scan first" — launch scan, then return here
 
@@ -385,8 +416,21 @@ Build a question list from:
 
 For each question:
 - If research provides a clear answer → resolve silently
-- If the answer materially affects scope, architecture, or risk → ask the user via AskUserQuestion
+- If the answer materially affects scope, architecture, or risk → ask the user (see below)
 - If the answer depends on runtime behavior → defer to implementation
+
+**If text_mode is active**, present each question as a plain-text numbered list instead of AskUserQuestion. For fixed-option questions:
+```
+{Question text}
+1. {option 1}
+2. {option 2}
+...
+```
+Type a number to choose:
+
+For open-ended questions, prompt for free text input. Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
+
+**Otherwise**, use AskUserQuestion for each question with the appropriate options.
 
 Keep user questions focused and minimal (1-2 max). Don't ask about things the user already decided in CONTEXT.md.
 
@@ -615,7 +659,19 @@ Task compound-engineering:document-review:feasibility-reviewer(
 ```
 
 Present findings to the user. For HIGH severity findings:
-- Ask if they want the plan revised
+
+**If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
+```
+HIGH finding: {description}
+1. Yes, revise the plan
+2. No, accept the risk
+```
+Type a number to choose:
+
+Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
+
+**Otherwise**, use AskUserQuestion to ask if they want the plan revised.
+
 - If yes, update the PLAN.md with fixes
 - If no, note the finding as a known risk
 
