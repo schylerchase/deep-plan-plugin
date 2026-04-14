@@ -1,7 +1,7 @@
 ---
 name: deep-plan
 description: "This skill should be used when the user asks to 'deep plan', 'plan a phase deeply', 'run deep-plan', or wants CE-quality implementation planning after /gsd-discuss-phase. Bridges GSD context with code-grounded research, implementation units, test scenarios, and optional feasibility review. Produces GSD-compatible PLAN.md files."
-argument-hint: "[phase] [--review] [--skip-research]"
+argument-hint: "[phase] [--review] [--skip-research] [--text]"
 allowed-tools:
   - Read
   - Write
@@ -101,6 +101,18 @@ Extract from the invocation:
 - `phase` — the phase number (e.g., "18", "11.1")
 - `--review` flag — run feasibility review after planning
 - `--skip-research` flag — skip CE repo-research-analyst
+- `--text` flag — use plain-text numbered lists instead of AskUserQuestion
+
+**Text mode detection (runs once, applies to all prompts):**
+
+Text mode is active if either condition is true:
+- `--text` flag was passed in arguments
+- `workflow.text_mode` is `true` in GSD config:
+  ```bash
+  TEXT_MODE=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get workflow.text_mode 2>/dev/null)
+  ```
+
+Store result as `text_mode` (boolean). When active, all user prompts in this session use plain-text numbered lists instead of AskUserQuestion.
 
 **If no phase argument provided, auto-detect:**
 
