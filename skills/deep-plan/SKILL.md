@@ -130,6 +130,31 @@ All phases in roadmap have plans. Nothing to plan. Run /gsd-add-phase to add new
 ```
 Stop execution.
 
+**Scope-mismatch check (runs when phase was auto-detected):**
+
+Compute `task_hint`: any free-text args not consumed by phase number or known flags (`--review`, `--skip-research`, `--text`). Empty string if none.
+
+Fire the scope-check if the phase was auto-detected AND (`task_hint` is non-empty OR the detected phase has no CONTEXT.md). Skip it otherwise (explicit phase arg, or happy path with CONTEXT.md and no hint) — fall straight through to the existing three-option prompt below.
+
+**If text_mode is active**, present as a plain-text numbered list:
+```
+Detected Phase {N}: {phase_name}. Your request mentions: "{task_hint}"
+How should this be scoped?
+1. Plan Phase {N} as detected
+2. Expand Phase {N} scope to include this work (runs /gsd-discuss-phase)
+3. Insert a decimal hotfix phase like {N}.1 (runs /gsd-add-phase)
+4. Route to /gsd-quick (tactical fix, no phase needed)
+```
+Type a number to choose. Parse response (number or free text). If invalid, re-prompt.
+
+**Otherwise**, use AskUserQuestion with four options mirroring the list above.
+
+Routing:
+- Option 1 → fall through to the existing three-option confirmation below
+- Option 2 → print `Run: /gsd-discuss-phase {N} "{task_hint}"` and stop (no banner, no TaskCreate, no state writes)
+- Option 3 → print `Run: /gsd-add-phase` (decimal hotfix flow) and stop
+- Option 4 → print `Run: /gsd-quick "{task_hint}"` and stop
+
 **If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
 ```
 1. Yes, plan Phase {N}
