@@ -148,13 +148,19 @@ Find all `@path/to/file` references in:
 - `@` inside code blocks or strings
 - Template variables like `@$HOME/.claude/get-shit-done/...` (these resolve at execution time — check if the GSD installation exists but don't error if the exact template path is missing)
 
-### 5. Consistency Checks
+### 5. Consistency & Rename Drift Checks
 
 **Cross-field consistency:**
 - WARNING if `files_modified` lists files not mentioned in any task's `<files>`
 - WARNING if task `<files>` reference files not in `files_modified`
 - WARNING if `requirements` IDs don't match IDs found in `.planning/REQUIREMENTS.md` (if that file exists)
 - INFO if must_haves artifacts reference files not in `files_modified`
+
+**Rename drift detection:**
+- WARNING if `must_haves.artifacts[].path` does not appear in any task `<files>` element AND not in `files_modified` (orphaned artifact — likely rename drift)
+- WARNING if `must_haves.key_links[].from` or `.to` references a path that does not appear in any task `<action>` or `<files>` content (broken cross-section link)
+- WARNING if a task `<action>` or `<read_first>` body textually mentions a task name that does not match any actual `<task><name>` value (stale task reference)
+- INFO if multiple tasks share the same `<name>` value (potential collision, may be intentional in checkpoint flows)
 
 **Structural consistency:**
 - WARNING if tasks reference implementation units by number but numbering is inconsistent

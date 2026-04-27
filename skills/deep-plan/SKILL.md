@@ -130,6 +130,12 @@ All phases in roadmap have plans. Nothing to plan. Run /gsd-add-phase to add new
 ```
 Stop execution.
 
+**Detection priority — why this order:**
+1. `Has CONTEXT.md but no PLAN.md` wins because the user explicitly ran discuss-phase to lock decisions; the next step is planning, and that's exactly what deep-plan does.
+2. `No CONTEXT.md, no PLAN.md` is the fallback for phases that need discuss-phase first; deep-plan suggests running it rather than planning blind.
+3. Phases with both CONTEXT.md and PLAN.md are skipped — they're already planned. Use `--review` or `/gsd-execute-phase` to proceed.
+4. The confirmation prompt below always runs after auto-detect; the user can override the choice with "Different phase".
+
 **Scope-mismatch check (runs when phase was auto-detected):**
 
 Compute `task_hint`: any free-text args not consumed by phase number or known flags (`--review`, `--skip-research`, `--text`). Empty string if none.
@@ -218,6 +224,34 @@ Parse the user's response (number or free text describing their choice). If inva
 - "Add another plan" (increment plan number)
 - "Replan from scratch" (overwrite)
 - "Cancel"
+</step>
+
+<step name="already_done_check">
+## Step 3.5: Already-Done Check
+
+**Announce:** `── deep-plan [3.5/{total}] Checking if work is already done ──`
+
+This step skips planning when the phase's success criteria are already satisfied by existing code (LIFE-02). Saves users from re-planning work that was implemented ad-hoc via /quick or other entry points.
+
+**Skip conditions:**
+- If `has_plans=true` from Step 2's init data → skip silently (already planned).
+- If criterion list from `roadmap get-phase` is empty → skip silently (nothing to check against).
+
+**Evidence gathering (per criterion):**
+1. Extract searchable tokens from each criterion text (file paths, function names, behavior keywords).
+2. Run lightweight checks: grep for tokens, Read referenced files, ls expected paths.
+3. Tag each criterion: `met` (all evidence found), `partial` (some evidence), `not met` (no evidence).
+
+**Routing:**
+- **All criteria `met`:** present summary table. Ask via AskUserQuestion (or numbered list in text_mode):
+  - "All success criteria for Phase {N} appear satisfied by existing code. Mark phase complete and exit?"
+  - Options: `Yes, mark complete` / `No, plan anyway (work may be redundant)` / `Show evidence first`
+  - On `Yes`: Edit `.planning/ROADMAP.md` to flip `[ ]` → `[x]` for the phase line. Log: `[step 3.5] Phase {N} marked complete based on existing code evidence`. Exit deep-plan with handoff message.
+  - On `No`: continue to Step 4.
+  - On `Show evidence first`: print the evidence table, then re-prompt with first two options only.
+- **Any `partial` or `not met`:** log `[step 3.5] {met}/{total} criteria show evidence — continuing to plan` and proceed to Step 4. Do not prompt.
+
+**Caveman override:** the AskUserQuestion in this step is a v2 signal — output the summary table and prompt in full prose regardless of caveman level. (Step 1 override map.)
 </step>
 
 <step name="gather_intel">
@@ -638,6 +672,11 @@ Detail: `Spawning plan-validator against PLAN.md...`
 
 This step always runs. It catches format errors that would break gsd-executor — frontmatter schema, task XML structure, must_haves validity, and @-reference resolution.
 
+**Validation lifecycle:** deep-plan validates plans twice when `--review` is active:
+1. Step 10 (this step) — initial validation after first write
+2. Step 11 — post-revision validation if feasibility findings trigger a plan update
+Both stages use the same plan-validator agent and follow the same retry-on-error pattern (1 retry, then surface to user).
+
 Spawn the plan-validator agent:
 
 ```
@@ -699,26 +738,24 @@ Task compound-engineering:document-review:feasibility-reviewer(
 )
 ```
 
-Present findings to the user. For HIGH severity findings:
+Route findings by severity:
 
-**If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
-```
-HIGH finding: {description}
-1. Yes, revise the plan
-2. No, accept the risk
-```
-Type a number to choose:
+**HIGH severity findings — auto-revise:**
+The user already opted into `--review`; HIGH findings exist precisely to trigger revision. Skip the permission prompt and revise automatically.
+- Log: `[step 11] HIGH finding(s) detected — auto-revising plan: {brief summary}`
+- Update the PLAN.md with fixes. Save the original content in a `pre_revision_plan` variable before the Edit call so revert is possible if validation persistently fails.
+- Re-run plan-validator on the revised plan to catch any cross-reference drift introduced by the revision (renamed task files, stale artifact paths, broken key_links).
+- On validation FAIL: auto-fix what can be fixed, then attempt one more revision pass. If errors persist, present three options via AskUserQuestion: "Revert to pre-revision plan", "Accept errors and proceed", "Stop and fix manually".
+- On validation PASS or WARN: log `[step 11] Auto-revision validated — proceeding`.
 
-Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
+**MODERATE severity findings — surface as warnings, do not block:**
+- Display each MODERATE finding with its location and recommendation.
+- Log: `[step 11] {N} MODERATE finding(s) — surfaced as warnings, not blocking`.
+- These should be addressed during execution but do not gate plan output.
 
-**Otherwise**, use AskUserQuestion to ask if they want the plan revised.
-
-- If yes, update the PLAN.md with fixes
-- If no, note the finding as a known risk
-
-For MODERATE/LOW findings:
-- Summarize briefly
-- Note any that should be addressed during execution
+**LOW severity findings — summarize briefly:**
+- One-line per finding for the audit trail.
+- No execution-time gating.
 
 **Announce (after review):** `── deep-plan [11/{total}] Feasibility review complete ──`
 Detail: `{N} findings: {high} HIGH | {moderate} MODERATE | {low} LOW`
