@@ -49,3 +49,14 @@ Use these entry points:
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
 <!-- GSD:workflow-end -->
+
+## Integration Awareness
+
+Deep-plan composes with four optional/required tools. Behavioral contracts:
+
+- **GSD (required)**: Read-only. Never modify CONTEXT.md, RESEARCH.md, or ROADMAP.md beyond flipping `[ ]` → `[x]` on phase completion. Plugin reads `.planning/intel/` and `.planning/research/` for warm-start context. Prereq check at SKILL.md Step 2.
+- **Compound Engineering (required)**: Spawn `repo-research-analyst` for code research (Step 6) and `feasibility-reviewer` for `--review` flag (Step 11). Warm-start when GSD intel exists, cold-start otherwise. Prompt bodies in `skills/deep-plan/references/ce-prompts.md`.
+- **Caveman (optional)**: Detect via `claude plugin list | grep caveman@caveman` at Step 1. When present, build override map for v2 signals (HIGH feasibility findings, AskUserQuestion blocks, mid-flight pivots) forcing full prose. Hard rule: `.md` artifacts written via Write tool always use full prose regardless of caveman mode. Spec: `skills/deep-plan/references/caveman-rule.md`.
+- **RTK (optional)**: When installed, prefer `rtk <cmd>` over raw shell for git/grep/find/cat/read/wc operations to reduce token consumption 60-90%. Hook at `~/.claude/hooks/rtk-rewrite.sh` rewrites transparently — no skill code change needed.
+
+Doctor command (`/deep-plan-doctor`) verifies all four. Required tools fail the install check; optional tools surface as `[INFO]`.

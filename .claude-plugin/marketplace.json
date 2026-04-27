@@ -23,7 +23,10 @@
         "ce",
         "implementation",
         "compound-engineering",
-        "feasibility"
+        "feasibility",
+        "ux",
+        "frontend",
+        "accessibility"
       ],
       "category": "workflow"
     }

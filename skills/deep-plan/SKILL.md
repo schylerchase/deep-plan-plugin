@@ -71,7 +71,13 @@ See `references/progress-templates.md` for full output examples per step.
 <step name="caveman_setup">
 ## Step 1: Caveman Setup
 
-If caveman is installed, read `references/caveman-rule.md` and build an override map for three v2 signals requiring full prose: HIGH feasibility findings, AskUserQuestion blocks, mid-flight scope pivots. If absent, skip silently.
+Detect caveman deterministically — do not guess from context:
+
+```bash
+CAVEMAN_INSTALLED=$(claude plugin list 2>/dev/null | grep -q "caveman@caveman" && echo yes || echo no)
+```
+
+If `CAVEMAN_INSTALLED=yes`, read `references/caveman-rule.md` and build an override map for three v2 signals requiring full prose: HIGH feasibility findings, AskUserQuestion blocks, mid-flight scope pivots. If `no`, skip silently — no override map, no further caveman references this run.
 
 Enforced at: questions (Steps 2, 7), pivots (Step 8), feasibility (Step 11).
 </step>

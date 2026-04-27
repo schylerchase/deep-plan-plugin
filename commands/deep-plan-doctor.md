@@ -39,41 +39,55 @@ Tier 1 checks work from any working directory (no GSD project required).
 For each check, print a result line formatted as:
 
 ```
-── deep-plan-doctor [N/6] <check name> ──────────────
-[OK|WARN|FAIL] <one-line result>
+── deep-plan-doctor [N/8] <check name> ──────────────
+[OK|WARN|FAIL|INFO] <one-line result>
 <remediation if not OK>
 ```
 
-**Check 1/6: Claude Code version**
+Required checks (1–6) fail the tier on `[FAIL]`. Optional checks (7–8) surface as `[INFO]` when missing — they never fail the tier.
+
+**Check 1/8: Claude Code version**
 - Run `claude --version` via Bash.
 - Parse major version. Pass if `major >= 2`.
 - On FAIL: `Install or upgrade Claude Code: npm install -g @anthropic-ai/claude-code (macOS/Linux) or winget install Anthropic.ClaudeCode (Windows).`
 
-**Check 2/6: GSD installed**
+**Check 2/8: GSD installed**
 - Test for file `$HOME/.claude/get-shit-done/bin/gsd-tools.cjs` via Bash (`test -f`).
 - On FAIL: `GSD is distributed via the GSD Discord community. Join the Discord and follow the install steps in #getting-started. (Not auto-fixable — Discord-gated by design.)`
 
-**Check 3/6: Compound Engineering (CE) installed**
+**Check 3/8: Compound Engineering (CE) installed**
 - Run `claude plugin list` via Bash.
 - Search output for `compound-engineering@compound-engineering-plugin` or any line matching `compound-engineering`.
 - On FAIL: `claude plugin marketplace add EveryInc/compound-engineering-plugin && claude plugin install compound-engineering`
 
-**Check 4/6: CE agents discoverable**
+**Check 4/8: CE agents discoverable**
 - Check if `repo-research-analyst` and `feasibility-reviewer` agents exist (these are CE's core agents that deep-plan spawns).
 - If the context doesn't allow agent introspection, mark as `[WARN] Could not introspect agents — test by running /deep-plan --review on a phase to verify CE agent availability.`
 - On FAIL: `CE is installed but agents aren't discoverable. Try: claude plugin update compound-engineering, or restart Claude Code.`
 
-**Check 5/6: deep-plan agents discoverable**
+**Check 5/8: deep-plan agents discoverable**
 - Check if `plan-validator` and `ux-reviewer` agents exist (bundled with deep-plan in agents/).
 - On FAIL: `deep-plan is running but its agents aren't discoverable. Try: claude plugin update deep-plan, or restart Claude Code.`
 
-**Check 6/6: deep-plan skills loaded**
+**Check 6/8: deep-plan skills loaded**
 - Verify the `deep-plan` skill and `frontend-design` skill appear loaded (these are the plugin's two skills). If skill listing is not directly introspectable, note this check as `[WARN]` with the same "restart Claude Code" remediation as above.
+
+**Check 7/8: Caveman (optional)**
+- Run `claude plugin list 2>/dev/null | grep -q "caveman@caveman"` via Bash.
+- On found: `[OK] Caveman installed — chat compression active per user mode`
+- On not-found: `[INFO] Caveman not installed (optional). Compresses chat output 60-90% without losing technical substance. Install: claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman`
+- This check NEVER fails the tier. Caveman is optional.
+
+**Check 8/8: RTK (optional)**
+- Run `which rtk` and `rtk --version` via Bash.
+- On found: `[OK] RTK {version} — token-optimized CLI proxy active`
+- On not-found: `[INFO] RTK not installed (optional). Reduces 60-90% of dev-operation token cost via shell hook rewrites. Install: cargo install rtk (then configure ~/.claude/hooks/rtk-rewrite.sh — see RTK README)`
+- This check NEVER fails the tier. RTK is optional.
 
 After Tier 1, print a summary line:
 
 ```
-── Tier 1 complete: {pass}/6 passing ──────────────
+── Tier 1 complete: {required_pass}/6 required passing | {optional_present}/2 optional tools ──────────────
 ```
 
 If **Check 1, 2, or 3 failed** (these are install-blocking), ask:
@@ -130,17 +144,19 @@ Compile all findings into a structured summary:
 ```
 ── deep-plan-doctor Summary ──────────────────────────
 
-Install Health: {tier1_pass}/6  — {HEALTHY|ISSUES|BROKEN}
+Install Health: {tier1_required_pass}/6 required, {tier1_optional_present}/2 optional  — {HEALTHY|ISSUES|BROKEN}
 Project Health: {tier2_pass}/{tier2_total}  — {HEALTHY|ISSUES|SKIPPED}
 
 Critical issues: {count}  (install-blocking)
 Warnings:        {count}  (functional but suboptimal)
+Optional tools:  {count} not installed (info-only, never blocks)
 ───────────────────────────────────────────────────────
 ```
 
 Classify findings as:
 - **Critical** — any `[FAIL]` from Tier 1 checks 1–3, or Tier 2 checks 1/3.
 - **Warning** — any `[WARN]` at any tier.
+- **Info** — any `[INFO]` from Tier 1 checks 7–8 (optional tools missing). Never blocks.
 
 Then for each non-OK check, print:
 
