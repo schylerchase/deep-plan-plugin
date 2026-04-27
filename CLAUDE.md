@@ -32,7 +32,7 @@ Claude Code plugin — no runtime, no build step, no package manager. Structure 
 ## Conventions
 
 - Skill body uses imperative form ("Extract the phase" not "You should extract")
-- SKILL.md body target: 1,500-2,000 words; move detail to `references/`
+- SKILL.md body stays focused on flow and decisions; verbose templates, prompts, and reference data live in `references/` (lazy-loaded)
 - File naming: kebab-case for everything except `SKILL.md` (uppercase)
 - Commands use same frontmatter conventions as skills (`name`, `description`, `allowed-tools`)
 <!-- GSD:conventions-end -->
