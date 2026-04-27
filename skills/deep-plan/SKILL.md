@@ -46,12 +46,12 @@ Caveman: optional plugin by Julius Brussee (MIT), installed separately.
 
 Deep-plan must be visually distinguishable from GSD and CE throughout execution. Follow these patterns at every step.
 
-**Opening banner** — Display after phase is confirmed (end of Step 2):
+**Opening banner** — Display after phase is confirmed (end of Step 2). Open-bordered style matches GSD (no right border to misalign with long phase names):
 
-    ╔═══════════════════════════════════════════════════╗
-    ║  Deep Plan — Phase {N}: {phase_name}              ║
-    ║  GSD context → CE research → Implementation plan  ║
-    ╚═══════════════════════════════════════════════════╝
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     Deep Plan — Phase {N}: {phase_name}
+     GSD context → CE research → Implementation plan
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **Step headers** — Display at the start of every step:
 
@@ -361,6 +361,8 @@ If `--skip-research` was passed, skip to Step 6. Otherwise:
 Task compound-engineering:research:repo-research-analyst(
   "Analyze the codebase for Phase {N}: {phase_name}.
   
+  Project conventions: read $PROJECT_ROOT/CLAUDE.md before starting research. Apply naming conventions, code style, and project-specific constraints from CLAUDE.md to all findings.
+  
   Planning brief: {planning_brief}
   
   ## Already Known (from GSD analysis — do NOT re-research these)
@@ -392,6 +394,8 @@ Task compound-engineering:research:repo-research-analyst(
 ```
 Task compound-engineering:research:repo-research-analyst(
   "Analyze the codebase for Phase {N}: {phase_name}.
+  
+  Project conventions: read $PROJECT_ROOT/CLAUDE.md before starting research. Apply naming conventions, code style, and project-specific constraints from CLAUDE.md to all findings.
   
   Planning brief: {planning_brief}
   
@@ -491,7 +495,7 @@ For each unit, define:
 - `artifacts` → one artifact per created/modified file with a searchable `contains` token
 - `key_links` → traceability from source to destination with search patterns
 
-**Ordering:** Dependencies first. Pure functions/constants before hooks before components. Infrastructure before features.
+**Ordering:** Dependencies first. Pure functions/constants before stateful units (hooks, classes, services) before composition layers (components, handlers, modules). Infrastructure before features.
 
 *Caveman override: If scope pivot detected (Step 1 override map), output pivot reasoning in full prose.*
 </step>
@@ -500,8 +504,20 @@ For each unit, define:
 ## Step 9: Write GSD PLAN.md
 
 Determine the plan number:
-- Check existing `{padded_phase}-*-PLAN.md` files
-- Next plan number = max existing + 1, zero-padded to 2 digits
+- List existing `{padded_phase}-*-PLAN.md` files
+- Extract the NN portion (digits between `{padded_phase}-` and `-PLAN.md`)
+- Sort numerically (NOT lexicographically — lex sort gives `10 < 09` because it compares character by character; numeric sort correctly gives `10 > 09`)
+- Next plan number = (max existing as integer) + 1, zero-padded to 2 digits
+- If no existing plans, start at 01
+
+Reference Bash one-liner:
+```bash
+NEXT=$(ls "{phase_dir}/{padded_phase}-"*"-PLAN.md" 2>/dev/null \
+  | sed -E 's/.*-([0-9]+)-PLAN\.md/\1/' \
+  | sort -n | tail -1)
+NEXT=$(( ${NEXT:-0} + 1 ))
+printf -v NEXT_PADDED "%02d" $NEXT
+```
 
 Write to: `.planning/phases/{padded_phase}-{slug}/{padded_phase}-{MM}-PLAN.md`
 
@@ -542,8 +558,8 @@ Output: {Deliverables — list of concrete outcomes}
 </objective>
 
 <execution_context>
-@$HOME/.claude/get-shit-done/workflows/execute-plan.md
-@$HOME/.claude/get-shit-done/templates/summary.md
+@~/.claude/get-shit-done/workflows/execute-plan.md
+@~/.claude/get-shit-done/templates/summary.md
 </execution_context>
 
 <context>
@@ -606,7 +622,7 @@ Output: {Deliverables — list of concrete outcomes}
 </success_criteria>
 
 <output>
-After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMARY.md using the template at @$HOME/.claude/get-shit-done/templates/summary.md
+After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMARY.md using the template at @~/.claude/get-shit-done/templates/summary.md
 </output>
 ```
 
