@@ -260,89 +260,11 @@ This step skips planning when the phase's success criteria are already satisfied
 **Announce:** `── deep-plan [4/{total}] Gathering codebase intelligence ──`
 After gathering, detail: `Intel: {found_list} ({N}/5 files, {fresh/stale/none}) | Research: {found_list} ({warm/cold} start)`
 
-GSD produces codebase analysis that CE would otherwise rediscover from scratch. Gathering this first gives CE a warm start — it spends tokens on depth instead of discovery.
+**Read `references/intel-sources.md`** for the full source list (intel/ files, research/ files, scope boundaries), staleness rules, the no-analysis fallback prompt, and the `gsd_knowledge` composition spec.
 
-**Check each source in order. Read what exists, skip what doesn't.**
+Check each source in order. Read what exists, skip what doesn't. If neither `.planning/intel/` nor `.planning/research/` exist, prompt the user per the reference (Continue anyway / Run /gsd-scan first).
 
-**3a. Intel files (`.planning/intel/`):**
-
-If the directory exists, read these structured files:
-- `deps.json` → dependency graph with versions, types, usage pointers
-- `files.json` → per-file export inventory with usage counts
-- `apis.json` → public API signatures and deprecation markers
-- `stack.json` → framework/library versions and roles
-- `arch.md` → architecture overview in plain markdown
-
-Check staleness: read `.planning/intel/.last-refresh.json` for `timestamp`. If older than 24 hours, flag: `"⚠️ Intel is {N} days old — CE will verify against live code"`
-
-**3b. Research files (`.planning/research/`):**
-
-If the directory exists, read:
-- `ARCHITECTURE.md` → layers, patterns, data flow (highest CE overlap)
-- `STACK.md` → tech decisions with confidence ratings
-- `STRUCTURE.md` → file/module organization, entry points
-
-Skip these (CE should discover independently for fresh perspective):
-- `CONCERNS.md` — CE finding its own pitfalls is more valuable than echoing known ones
-- `CONVENTIONS.md` — CE should infer from actual code, not pre-digested summaries
-
-**3c. Scope boundaries (always read):**
-- `.planning/REQUIREMENTS.md` → especially "Out of Scope" items (prevents CE from over-researching)
-- `.planning/ROADMAP.md` → phase section only (goals, success criteria, dependencies)
-
-**3d. If nothing exists:**
-
-If neither `.planning/intel/` nor `.planning/research/` exist, suggest:
-```
-No codebase analysis found. For better results, consider running one of:
-  /gsd-scan          — quick analysis (2-3 min)
-  /gsd-map-codebase  — deep analysis (5-10 min)
-
-Continue without pre-analysis? CE will explore from scratch (higher token usage).
-```
-
-**If text_mode is active**, present as a plain-text numbered list instead of AskUserQuestion:
-```
-1. Continue anyway
-2. Run /gsd-scan first
-```
-Type a number to choose:
-
-Parse the user's response (number or free text describing their choice). If invalid, re-prompt.
-
-**Otherwise**, use AskUserQuestion with options:
-- "Continue anyway" — proceed, CE does full cold-start exploration
-- "Run /gsd-scan first" — launch scan, then return here
-
-**Compose the intelligence summary:**
-
-Build a structured `gsd_knowledge` block from everything gathered:
-```
-## Known Codebase Intelligence (from GSD)
-
-### Architecture
-{from ARCHITECTURE.md or arch.md — layers, key patterns, data flow}
-
-### Dependencies  
-{from deps.json — name, version, role for each relevant dep}
-
-### File Structure
-{from files.json or STRUCTURE.md — key files, their exports, organization}
-
-### API Surface
-{from apis.json — relevant method signatures and stability}
-
-### Tech Stack
-{from stack.json or STACK.md — frameworks, versions, roles}
-
-### Scope Boundaries
-- Out of scope: {from REQUIREMENTS.md}
-- Deferred: {from CONTEXT.md <deferred> section}
-
-### Freshness
-- Intel: {fresh / stale / not available}
-- Research: {available / not available}
-```
+After gathering, build the `gsd_knowledge` block per the schema in the reference. This block feeds Step 6 (CE warm-start prompt).
 </step>
 
 <step name="build_planning_brief">
@@ -381,89 +303,16 @@ Compose a 2-3 paragraph planning brief summarizing:
 ## Step 6: CE Research (unless --skip-research)
 
 **Announce:** `── deep-plan [6/{total}] CE deep research ({warm/cold} start) ──`
-Before launching CE, state what was pre-fed from GSD and what CE will focus on:
-- Warm: `Pre-fed: {summary — e.g., architecture, 47 deps, 12 exports} → CE focusing on: integration points, gaps, risks`
+- Warm: `Pre-fed: {summary} → CE focusing on: integration points, gaps, risks`
 - Cold: `No GSD intel to pre-feed → CE exploring from scratch`
 
-If `--skip-research` was passed, skip to Step 6. Otherwise:
+If `--skip-research` was passed, skip to Step 7.
 
-**Compose the CE prompt based on what GSD intelligence is available:**
+**Decide warm vs cold:** if `gsd_knowledge` block from Step 4 is non-empty → warm-start. Otherwise → cold-start.
 
-**If GSD intel/research exists (warm start):**
+**Read `references/ce-prompts.md`** for the full Task spawn body (warm + cold variants), confidence-tag rules, merge rules, and post-CE announce templates. Substitute `{N}`, `{phase_name}`, `{planning_brief}`, `{gsd_knowledge block from Step 3}`, and `{files from code_context}` from in-memory state, then spawn the agent.
 
-```
-Task compound-engineering:research:repo-research-analyst(
-  "Analyze the codebase for Phase {N}: {phase_name}.
-  
-  Project conventions: read $PROJECT_ROOT/CLAUDE.md before starting research. Apply naming conventions, code style, and project-specific constraints from CLAUDE.md to all findings.
-  
-  Planning brief: {planning_brief}
-  
-  ## Already Known (from GSD analysis — do NOT re-research these)
-  {gsd_knowledge block from Step 3}
-  
-  ## What I Need From You (focus tokens here)
-  1. Deep code tracing: actual function signatures, data flow, and closures 
-     for the seed files — GSD mapped structure but not internals
-  2. Integration points: how the files in scope actually connect at runtime 
-     (imports, callbacks, event chains, shared state)
-  3. Gaps and contradictions: anything the GSD analysis missed or got wrong
-     (it may be stale — verify against live code)
-  4. Test infrastructure: existing test patterns, frameworks, fixtures 
-     relevant to this phase
-  5. Risk signals: build/deploy issues, version conflicts, breaking changes
-     that GSD's static analysis wouldn't catch
-  
-  Seed files to examine: {files from code_context}
-  
-  Do NOT spend tokens on: dependency listing, file tree enumeration, 
-  architecture overview, or tech stack identification — these are already known.
-  
-  Return: code-level findings, integration map, gaps found, test patterns, risks."
-)
-```
-
-**If no GSD intel exists (cold start):**
-
-```
-Task compound-engineering:research:repo-research-analyst(
-  "Analyze the codebase for Phase {N}: {phase_name}.
-  
-  Project conventions: read $PROJECT_ROOT/CLAUDE.md before starting research. Apply naming conventions, code style, and project-specific constraints from CLAUDE.md to all findings.
-  
-  Planning brief: {planning_brief}
-  
-  Seed files to examine: {files from code_context}
-  
-  Focus on:
-  1. Current file organization and patterns relevant to this phase
-  2. Dependencies and integration points
-  3. Existing code that will be modified or extended
-  4. Testing infrastructure and conventions
-  5. Build/deployment considerations
-  
-  Return: technology context, architectural patterns, relevant files with line counts,
-  risks or gaps not covered in the existing research."
-)
-```
-
-**Merge and rate findings:**
-
-Tag each CE finding with a confidence level:
-- **HIGH** — verified against live code (file exists, signature confirmed, test ran)
-- **MEDIUM** — inferred from patterns (naming conventions, similar code, dependency graph)
-- **LOW** — speculative (based on docs, comments, or assumptions not yet verified)
-
-Include all findings regardless of confidence. The rating is informational — it helps the user gauge which findings to trust during execution.
-
-- New file paths and patterns → add to planning context (with confidence tag)
-- Gaps not covered by GSD research → flag as new findings (with confidence tag)
-- Contradictions with GSD intel → note for user (intel may be stale)
-- Dead dependencies, stale docs, unused code → note as bonus findings
-
-**Announce (after CE returns):** `── deep-plan [6/{total}] CE research complete ──`
-- Warm: `{N} findings ({high} high, {med} medium, {low} low) | {gaps} gaps | {risks} risk signals`
-- Cold: `{N} relevant files | {M} findings ({high}/{med}/{low}) (Tip: /gsd-scan before planning = faster)`
+**After CE returns:** apply the confidence tags + merge rules from the reference. Display the post-CE announce line per warm/cold variant.
 </step>
 
 <step name="resolve_questions">
@@ -537,128 +386,11 @@ For each unit, define:
 <step name="write_plan">
 ## Step 9: Write GSD PLAN.md
 
-Determine the plan number:
-- List existing `{padded_phase}-*-PLAN.md` files
-- Extract the NN portion (digits between `{padded_phase}-` and `-PLAN.md`)
-- Sort numerically (NOT lexicographically — lex sort gives `10 < 09` because it compares character by character; numeric sort correctly gives `10 > 09`)
-- Next plan number = (max existing as integer) + 1, zero-padded to 2 digits
-- If no existing plans, start at 01
+**Read `references/plan-template.md`** for: numeric plan-numbering rules, the file-path convention, substitution-variable table, and the full PLAN.md template body (frontmatter + objective + execution_context + context + tasks + threat_model + verification + success_criteria + output).
 
-Reference Bash one-liner:
-```bash
-NEXT=$(ls "{phase_dir}/{padded_phase}-"*"-PLAN.md" 2>/dev/null \
-  | sed -E 's/.*-([0-9]+)-PLAN\.md/\1/' \
-  | sort -n | tail -1)
-NEXT=$(( ${NEXT:-0} + 1 ))
-printf -v NEXT_PADDED "%02d" $NEXT
-```
+Substitute live values per the variable table in the reference. Write to `.planning/phases/{padded_phase}-{slug}/{padded_phase}-{MM}-PLAN.md`.
 
-Write to: `.planning/phases/{padded_phase}-{slug}/{padded_phase}-{MM}-PLAN.md`
-
-**Format:**
-
-```yaml
----
-phase: {padded_phase}-{slug}
-plan: {MM}
-type: execute
-wave: 1
-depends_on: [{existing_plans_if_any}]
-files_modified:
-  - {all files from all units}
-autonomous: true
-requirements: [{requirement IDs from ROADMAP}]
-
-must_haves:
-  truths:
-    - "{truth from test scenarios}"
-  artifacts:
-    - path: "{file}"
-      provides: "{what it provides}"
-      contains: "{search token}"
-  key_links:
-    - from: "{source}"
-      to: "{destination}"
-      via: "{how they connect}"
-      pattern: "{search pattern}"
----
-
-<objective>
-{Phase goal from ROADMAP}
-
-Purpose: {Why this matters — from CONTEXT.md domain section}
-
-Output: {Deliverables — list of concrete outcomes}
-</objective>
-
-<execution_context>
-@~/.claude/get-shit-done/workflows/execute-plan.md
-@~/.claude/get-shit-done/templates/summary.md
-</execution_context>
-
-<context>
-@.planning/phases/{phase_dir}/{padded_phase}-CONTEXT.md
-{@file references for all seed files from research}
-
-<interfaces>
-{Key code contracts from research findings — actual code signatures,
- data shapes, integration points the executor needs to understand}
-</interfaces>
-</context>
-
-<tasks>
-
-{For each implementation unit:}
-
-<task type="auto">
-  <name>Unit {N}: {unit name}</name>
-  <read_first>
-    {files from unit's "Patterns to follow"}
-  </read_first>
-  <files>{files from unit}</files>
-  <action>
-**Goal:** {unit goal}
-
-**Requirements:** {unit requirements}
-
-**Approach:**
-{unit approach — key decisions, not code}
-
-**Patterns to follow:**
-{existing code references}
-
-**Test scenarios:**
-{all test scenarios with category prefixes}
-  </action>
-  <verify>
-    <automated>{verification commands where possible}</automated>
-  </verify>
-  <acceptance_criteria>
-    {verification outcomes from unit}
-  </acceptance_criteria>
-  <done>Unit {N} complete — {completion summary}</done>
-</task>
-
-</tasks>
-
-<threat_model>
-{Only include if the phase touches auth, user input, external APIs, or data persistence.
- Use STRIDE framework: Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation.
- Otherwise omit this section entirely.}
-</threat_model>
-
-<verification>
-{Consolidated verification checklist from all units}
-</verification>
-
-<success_criteria>
-{Success criteria from ROADMAP phase section}
-</success_criteria>
-
-<output>
-After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMARY.md using the template at @~/.claude/get-shit-done/templates/summary.md
-</output>
-```
+Path-portability rule: tilde paths only (`@~/...`); never `@$HOME/...` (PORT-01).
 
 **Announce:** `── deep-plan [9/{total}] Plan written ──`
 Detail: `.planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN.md` — `Units: {N} | Test scenarios: {N} | Must-haves: {truths} truths, {artifacts} artifacts, {links} links`
@@ -677,34 +409,7 @@ This step always runs. It catches format errors that would break gsd-executor �
 2. Step 11 — post-revision validation if feasibility findings trigger a plan update
 Both stages use the same plan-validator agent and follow the same retry-on-error pattern (1 retry, then surface to user).
 
-Spawn the plan-validator agent:
-
-```
-Task deep-plan:plan-validator(
-  "Validate this PLAN.md for GSD executor compatibility.
-  
-  Plan: {path to written PLAN.md}
-  Project root: {project root path}
-  
-  Check all 6 dimensions: frontmatter schema, must_haves structure, 
-  task XML, @-references, consistency, and executor compatibility.
-  
-  Return the validation report with PASS/WARN/FAIL result."
-)
-```
-
-**On FAIL (any ERROR findings):**
-- Display each error with its location
-- Auto-fix what can be fixed (missing fields with sensible defaults, malformed YAML)
-- For unfixable errors, ask the user: revise the plan or proceed at risk
-- If revising, update the PLAN.md and re-run validation
-
-**On WARN:**
-- Display warnings briefly
-- Continue to next step (warnings don't block)
-
-**On PASS:**
-- Display: `✓ Plan structure validated — {N} checks passed`
+**Read `references/validation-flow.md`** for the full Task spawn body, FAIL/WARN/PASS result routing, and retry semantics. Substitute `{path to written PLAN.md}` and `{project root path}` from in-memory state.
 
 **Announce (after validation):** `── deep-plan [10/{total}] Validation complete ──`
 Detail: `Result: {PASS/WARN/FAIL} | Errors: {N} | Warnings: {N}`
