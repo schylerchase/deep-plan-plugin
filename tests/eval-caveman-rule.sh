@@ -143,7 +143,7 @@ while IFS= read -r fixture; do
         fail_count=$((fail_count + 1))
       fi
       ;;
-    feasibility_high|askuserquestion_block|mid_flight_pivot)
+    feasibility_high|askuserquestion_block|mid_flight_pivot|routing_decision_banner)
       # v2 signal override: prose assertion (same as artifact_write per D-09)
       if is_prose "$body"; then
         article_count=$(printf '%s' "$body" | grep -oE '\b(the|The|an|An|is|are|was|were)\b' | wc -l | tr -d ' ')
