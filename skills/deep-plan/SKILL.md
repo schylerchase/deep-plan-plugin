@@ -57,7 +57,7 @@ Deep-plan must be visually distinguishable from GSD and CE throughout execution.
 
     ── deep-plan [{current}/{total}] {Step Name} ──────────
 
-Total = 12 with `--review`, 11 without (feasibility review skipped). Step 9.5 (routing decision) is counted as one task; its announce header reads `[9.5/{total}]`.
+Total = 12 with `--review`, 11 without (feasibility review skipped). Both fractional steps (3.5 already-done check and 9.5 routing decision) are each counted as one task; their announce headers read `[3.5/{total}]` and `[9.5/{total}]`. Steps that announce headers: 3, 3.5, 4, 5, 6, 7, 8, 9, 9.5, 10, 11, 12 (skip 11 when `--review` is absent). Step 1 (Caveman Setup) and Step 2 (Parse Arguments) do their setup work silently and do not announce.
 
 **Detail lines** — 1-2 lines after each header showing what was found/done. Use ✓/✗ for availability.
 
@@ -185,7 +185,7 @@ Parse the user's response (number or free text describing their choice). If inva
 **After phase confirmed:**
 1. Display the opening banner (see progress protocol)
 2. TaskCreate one task per remaining step (prefix "Deep Plan:"), e.g., "Deep Plan: Load GSD context"
-3. Total tasks = 11 (steps 2-11 + step 9.5) without `--review`, 12 (steps 2-12 + step 9.5) with `--review`
+3. Total tasks = 11 without `--review`, 12 with `--review`. The denominator counts every step that announces a `[N/{total}]` header: 3, 3.5, 4, 5, 6, 7, 8, 9, 9.5, 10, 12 (11 entries) without `--review`; add 11 (feasibility review) for the 12-entry `--review` total. Step 1 (Caveman Setup) and Step 2 (Parse Arguments) run silently and are not counted.
 </step>
 
 <step name="load_gsd_context">
