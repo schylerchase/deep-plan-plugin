@@ -69,14 +69,32 @@ body_of() {
   ' "$1"
 }
 
+# ── validate_int: assert value is a non-negative integer per the spec
+#    (references/scoring.md "Validation: Values must be non-negative integers").
+#    Empty string is allowed (treated as missing → caller decides fallback).
+#    Aborts the run with exit 4 on violation, matching the existing exit-code
+#    convention for fixture validation failures.
+validate_int() {
+  local field="$1"
+  local value="$2"
+  local fixture="$3"
+  # Empty values pass through (some fixtures legitimately omit input_tokens, etc.)
+  [ -z "$value" ] && return 0
+  if ! printf '%s' "$value" | grep -Eq '^[0-9]+$'; then
+    echo "ERROR: fixture $(basename "$fixture") has invalid value for $field: '$value' (must be non-negative integer)" >&2
+    exit 4
+  fi
+}
+
 # ── compute_scores: read inputs from frontmatter, compute three perspective scores +
 #    quadratic combine + threshold-mapped model + D-01 advisory + D-12 borderline_hint.
 #    Emits a 7-field pipe-delimited tuple: volume|structure|risk|combined|model|advisory|borderline_hint
 #
 #    Float-precision nudge: `+ 1e-9` inside printf "%.1f" defeats the float-binary edge-case
-#    described in 08-RESEARCH.md Pitfall 1 (printf "%.1f", 1.005 may round to 1.0
-#    in some awk implementations because 1.005 stores as 1.00499...). The bash-layer mirror
-#    of the Number.EPSILON correction Plan 03 will document for JS in references/scoring.md.
+#    where awk stores values like 0.15*10 as 1.49999... rather than exactly 1.5, so plain
+#    %.1f rounds down. NOTE: 1e-9 is ~7 orders of magnitude larger than Number.EPSILON
+#    (2.22e-16); the bash and JS layers are NOT arithmetically equivalent, only empirically
+#    aligned for the current 8 fixtures. See references/scoring.md ## Half-Up Rounding.
 compute_scores() {
   local fixture="$1"
   local files_modified
@@ -100,6 +118,19 @@ compute_scores() {
   unknown_deps=$(yaml_get "$fixture" unknown_deps)
   input_tokens=$(yaml_get "$fixture" input_tokens)
   bias=$(yaml_get "$fixture" bias)
+
+  # Validate the 8 signal inputs + input_tokens per spec (non-negative integers).
+  # bias is a string ("quality" | "balanced" | "budget") so it's not validated here —
+  # the case statement below silently falls back to balanced for unknown values.
+  validate_int "files_modified" "$files_modified" "$fixture"
+  validate_int "tasks"          "$tasks"          "$fixture"
+  validate_int "key_links"      "$key_links"      "$fixture"
+  validate_int "artifacts"      "$artifacts"      "$fixture"
+  validate_int "truths"         "$truths"         "$fixture"
+  validate_int "novel"          "$novel"          "$fixture"
+  validate_int "checkpoints"    "$checkpoints"    "$fixture"
+  validate_int "unknown_deps"   "$unknown_deps"   "$fixture"
+  validate_int "input_tokens"   "$input_tokens"   "$fixture"
 
   # Volume = sqrt(files_modified) * 1.5 + tasks * 0.3
   local volume
