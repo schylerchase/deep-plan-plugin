@@ -208,6 +208,7 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 /deep-plan 18           # Plan specific phase
 /deep-plan 18 --review  # Plan + feasibility review
 /deep-plan 18 --skip-research  # Skip CE codebase research (faster)
+/deep-plan 18 --text    # Plain-text prompts instead of interactive UI
 ```
 
 ### UX Review
@@ -248,13 +249,14 @@ Run it when deep-plan feels broken, before running `/deep-plan` for the first ti
 ```
 
 1. **Reads GSD artifacts** (CONTEXT.md, RESEARCH.md, ROADMAP.md) — extracts locked decisions, scope boundaries, and seed files
-2. **Gathers codebase intelligence** — reads GSD's intel files (`deps.json`, `files.json`, `apis.json`, `arch.md`) and research docs (`ARCHITECTURE.md`, `STACK.md`) so CE doesn't rediscover what GSD already knows
-3. **Runs CE's `repo-research-analyst`** with a targeted prompt — when GSD intel exists, CE skips architecture/dependency discovery and focuses on deep code tracing, integration points, gaps, and risk signals
-4. **Asks 0-2 scoping questions** informed by GSD's locked decisions — only asks about things that materially affect scope or architecture
-5. **Structures implementation units** with file paths, test scenarios, patterns to follow, and verification criteria
-6. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
-7. **Validates plan structure** with the `plan-validator` agent — catches frontmatter errors, broken @-references, and invalid task XML before execution
-8. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
+2. **Checks if the phase is already done** — scans success criteria against existing code; if all criteria are satisfied, offers to mark the phase complete and exit rather than re-planning work that was already implemented
+3. **Gathers codebase intelligence** — reads GSD's intel files (`deps.json`, `files.json`, `apis.json`, `arch.md`) and research docs (`ARCHITECTURE.md`, `STACK.md`) so CE doesn't rediscover what GSD already knows
+4. **Runs CE's `repo-research-analyst`** with a targeted prompt — when GSD intel exists, CE skips architecture/dependency discovery and focuses on deep code tracing, integration points, gaps, and risk signals
+5. **Asks 0-2 scoping questions** informed by GSD's locked decisions — only asks about things that materially affect scope or architecture
+6. **Structures implementation units** with file paths, test scenarios, patterns to follow, and verification criteria
+7. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
+8. **Validates plan structure** with the `plan-validator` agent — catches frontmatter errors, broken @-references, and invalid task XML before execution
+9. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
 
 ### Progress Reporting
 
