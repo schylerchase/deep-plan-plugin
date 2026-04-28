@@ -190,7 +190,7 @@ These three signals share an identical extraction pattern — read the correspon
 
 ### `<signals>` override block schema
 
-Per D-13 power users can correct false positives via a `<signals>` block in their phase CONTEXT.md. Schema is flat key:value pairs (no YAML wrapper, no nesting), parseable by the same `yaml_get` pattern used by the test harness:
+Per D-13 power users can correct false positives via a `<signals>` block in their phase CONTEXT.md body. Schema is flat key:value pairs (no YAML wrapper, no nesting). The block lives in the markdown body, NOT in frontmatter — so the frontmatter-only `yaml_get` helper used by `tests/eval-scoring.sh` and `tests/eval-caveman-rule.sh` cannot extract it (that helper is gated on `---` fences and exits at the second `---`). A dedicated extractor must locate the `<signals>...</signals>` markers and split each interior line on the first `:`. Example block:
 
 ```
 <signals>
