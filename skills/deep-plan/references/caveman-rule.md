@@ -66,15 +66,23 @@ Signal-based overrides activate when deep-plan encounters specific interaction t
 - **Override mode:** off (full prose)
 - **Scope:** All reasoning, tradeoff analysis, and recommendation text for the pivot interaction. The user is making a critical scope decision; all reasoning must be clear.
 
+### Signal: Routing Decision Banner
+
+- **Trigger:** Deep-plan Step 9.5 emits the model-routing decision banner with the three perspective scores, the recommended model, and any phase-split advisory or borderline hint.
+- **Detection heuristic:** The output begins with `── deep-plan [9.5/{total}] Routing decision ──` and contains the compact 3-line breakdown defined in Phase 8 D-09 (Volume / Structure / Risk → Combined; Recommendation; optional advisory). The Step 9.5 banner is the only step output that includes the literal sequence `Recommendation:` followed by `(<bias> bias, threshold T)`.
+- **Override mode:** off (full prose)
+- **Scope:** All three banner lines, the optional advisory text, the optional borderline hint, and the optional `(reduced confidence: --skip-research used)` note. The machine-readable trailer comment (`<!-- DEEP_PLAN_ROUTING: ... -->`) is part of the banner for parsing purposes but does not affect the prose assertion. The banner is a decision artifact, not chatter — users read it to understand which model was chosen and why, and caveman compression would destroy that legibility.
+
 ## Fixtures
 
-Five fixtures in `skills/deep-plan/fixtures/caveman/`:
+Six fixtures in `skills/deep-plan/fixtures/caveman/`:
 
 - `01-chat-fragment.md` — fixture_type: chat. Represents caveman-style chat output. Smoke test only.
 - `02-write-artifact.md` — fixture_type: artifact_write. Represents a `.md` file body. Asserts prose via article-word count.
 - `03-feasibility-high.md` — fixture_type: feasibility_high. Represents a HIGH feasibility finding output. Asserts prose via article-word count (v2 signal override).
 - `04-askuserquestion-block.md` — fixture_type: askuserquestion_block. Represents a user-facing question block. Asserts prose via article-word count (v2 signal override).
 - `05-mid-flight-pivot.md` — fixture_type: mid_flight_pivot. Represents a scope pivot interaction. Asserts prose via article-word count (v2 signal override).
+- `06-routing-decision.md` — fixture_type: routing_decision_banner. Represents the deep-plan Step 9.5 routing decision banner. Asserts prose via article-word count (v2 signal override per Phase 8 D-11).
 
 ## Versioning
 
