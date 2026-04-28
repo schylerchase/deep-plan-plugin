@@ -224,13 +224,13 @@ Recommendation: {model} ({bias} bias, threshold {T})
 
 ### Borderline hint (D-12)
 
-When `combined` is within ±10% of either threshold for the active bias (`within10pct(combined, threshold) := |combined - threshold| <= 0.1 * threshold`), append a bias-bump hint:
+When `combined` is within ±10% **below** either threshold for the active bias (`belowBy10pct(combined, threshold) := combined < threshold AND threshold - combined <= 0.1 * threshold`), append a bias-bump hint:
 
 ```
 close to {opus|sonnet} threshold; bump bias to {quality|balanced} if you want {opus|sonnet}
 ```
 
-Closer threshold wins — never show both hints simultaneously. Suggests bumping toward opus when near `opus_threshold`; suggests bumping bias when near `sonnet_threshold` and `combined < opus_threshold`.
+Closer threshold wins — never show both hints simultaneously. Both branches are gated on `combined < threshold`: the opus branch on `combined < opus_threshold`, the sonnet branch on `combined < sonnet_threshold AND combined < opus_threshold`. At or above a threshold the user already routes to that tier (per the `>=` rule in D-04), so the bias-bump suggestion would be misleading. The hint exists to surface a near-miss the user could correct by adjusting bias, not to comment on the routed tier.
 
 ### Caveman exemption (D-11) and machine-readable trailer
 

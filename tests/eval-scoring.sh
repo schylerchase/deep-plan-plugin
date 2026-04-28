@@ -174,11 +174,15 @@ compute_scores() {
   fi
 
   # D-12 borderline hint: combined within ±10% of either threshold; choose the closer one.
-  # If within ±10% of opus_thresh → "close to opus threshold; bump bias to quality if you want opus"
+  # The opus hint only fires when combined < opus_thresh (user is BELOW the line and could
+  # bump bias to reach opus). At or above the threshold, the user already routes to opus,
+  # so suggesting "bump bias to quality if you want opus" is misleading. Mirrors the
+  # sonnet branch which already had a `c < ot` guard.
+  # If within ±10% of opus_thresh AND combined < opus_thresh → opus borderline hint
   # Else if within ±10% of sonnet_thresh AND combined < opus_thresh → analogous sonnet hint
   # Else empty string
   local borderline_hint=""
-  if awk -v c="$combined" -v t="$opus_thresh" 'BEGIN { d = c - t; if (d < 0) d = -d; exit !(d <= 0.1 * t) }'; then
+  if awk -v c="$combined" -v t="$opus_thresh" 'BEGIN { d = t - c; exit !(d > 0 && d <= 0.1 * t) }'; then
     borderline_hint="close to opus threshold; bump bias to quality if you want opus"
   elif awk -v c="$combined" -v t="$sonnet_thresh" -v ot="$opus_thresh" 'BEGIN { d = c - t; if (d < 0) d = -d; exit !(d <= 0.1 * t && c < ot) }'; then
     borderline_hint="close to sonnet threshold; bump bias to balanced if you want sonnet"
@@ -259,10 +263,19 @@ while IFS= read -r fixture; do
         fail=1
       fi
 
-      # Borderline hint assertion (D-12, VALIDATION.md task 8-07-02): only assert when declared
-      if [ -n "$exp_bhint" ] && [ "$bhint" != "$exp_bhint" ]; then
-        echo "[FAIL] $name: borderline_hint mismatch — computed '$bhint', expected '$exp_bhint'"
-        fail=1
+      # Borderline hint assertion (D-12, VALIDATION.md task 8-07-02): only assert when declared.
+      # Special case: `expected_borderline_hint: ""` (literal two-char string) declares
+      # "no hint expected" — strip the quotes and assert against empty string. This lets
+      # fixture 04 (combined == opus_threshold, model already opus) lock in the WR-2 fix
+      # that the opus hint must NOT fire when the user is at or above the threshold.
+      if [ -n "$exp_bhint" ]; then
+        if [ "$exp_bhint" = '""' ]; then
+          exp_bhint=""
+        fi
+        if [ "$bhint" != "$exp_bhint" ]; then
+          echo "[FAIL] $name: borderline_hint mismatch — computed '$bhint', expected '$exp_bhint'"
+          fail=1
+        fi
       fi
 
       # Determinism: re-run and require byte-equal output (success criterion #1)

@@ -18,6 +18,7 @@ expected_risk: 0.0
 expected_combined: 12.0
 expected_model: opus
 expected_advisory: false
+expected_borderline_hint: ""
 ---
 
 # Fixture: Boundary case — combined exactly equals opus threshold
@@ -35,7 +36,7 @@ combined  = sqrt(12.0^2 + 0^2 + 0.3*0^2) = sqrt(144.000 + 0.000 + 0.000) = sqrt(
 
 Threshold (bias=balanced): opus=12, sonnet=4. 12.0 >= 12 -> expected_model: opus (locks the >= rule).
 Advisory (D-01): input_tokens=10000 <= 180000 -> false.
-Borderline (D-12): |12.0 - 12| = 0 <= 1.2 -> would fire opus hint, but this fixture omits expected_borderline_hint so the harness does not assert it. This fixture's job is the >= rule, not D-12 hint coverage. See fixture 08.
+Borderline (D-12, post-WR-2): combined=12.0 is NOT below opus_threshold=12 (the gate is `combined < opus_threshold`), so no opus hint fires. The fixture asserts `expected_borderline_hint: ""` to lock this behavior. The hint exists to surface a near-miss the user could correct by bumping bias — when combined already meets or exceeds the threshold, the user already routes to opus and the suggestion would be misleading. See fixture 08 for the lower-band case (combined=11.5 below opus=12) where the hint correctly fires.
 
 -- End sample --
 
