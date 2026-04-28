@@ -3,16 +3,21 @@
 # banner trailer is well-formed for known inputs (B3 mitigation per Phase 8 review).
 #
 # Couples Plan 03's trailer schema (references/scoring.md §8 Banner Format) to
-# Plan 01's compute_scores helper (tests/eval-scoring.sh). If either drifts away
-# from the contract, this test fails alongside the breaking change.
+# Plan 01's compute_scores helper. If either drifts away from the contract, this
+# test fails alongside the breaking change.
 #
-# Approach:
+# Approach (post-WR-4 from Phase 8 review):
 #   1. Build a deterministic synthetic fixture in $TMPDIR (does NOT pollute
 #      skills/deep-plan/fixtures/scoring/ which Plan 01 locks at exactly 8).
-#   2. Extract `yaml_get` and `compute_scores` from tests/eval-scoring.sh via awk
-#      (sourcing the whole script would trigger its top-level fixture loop).
-#   3. Eval the extracted functions in this shell, invoke compute_scores against
-#      the synthetic fixture, and assemble the trailer per references/scoring.md §8.
+#   2. Source tests/lib-scoring.sh to get compute_scores in this shell. Previously
+#      the helpers were extracted from eval-scoring.sh via brittle awk regex
+#      (`/^yaml_get\(\) \{/,/^\}/`) that broke on any benign reformatting of the
+#      eval script — switching to `function NAME { }` syntax, adding a space
+#      before `()`, or refactoring to a column-0 `}` line inside the function
+#      body would silently break this test for reasons unrelated to the
+#      schema-parity contract being checked.
+#   3. Invoke compute_scores against the synthetic fixture and assemble the
+#      trailer per references/scoring.md §8.
 #   4. Assert the five required keys (model, combined, volume, structure, risk)
 #      are present and match the expected values.
 #
@@ -20,15 +25,24 @@
 #   0  trailer present and matches expected values
 #   1  trailer missing one or more required keys
 #   2  trailer key value differs from compute_scores output
-#   3  tests/eval-scoring.sh missing or compute_scores helper unavailable
+#   3  tests/lib-scoring.sh missing or compute_scores helper unavailable
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-EVAL_SCRIPT="$REPO_ROOT/tests/eval-scoring.sh"
+LIB_SCRIPT="$SCRIPT_DIR/lib-scoring.sh"
 
-if [ ! -f "$EVAL_SCRIPT" ]; then
-  echo "[FAIL] tests/eval-scoring.sh not found at $EVAL_SCRIPT — Plan 01 must land first"
+if [ ! -f "$LIB_SCRIPT" ]; then
+  echo "[FAIL] tests/lib-scoring.sh not found at $LIB_SCRIPT — cannot source compute_scores helper"
+  exit 3
+fi
+
+# shellcheck source=tests/lib-scoring.sh
+. "$LIB_SCRIPT"
+
+# Sanity check the helpers loaded.
+if ! declare -F yaml_get >/dev/null || ! declare -F compute_scores >/dev/null; then
+  echo "[FAIL] sourcing lib-scoring.sh did not register yaml_get/compute_scores"
   exit 3
 fi
 
@@ -67,25 +81,6 @@ expected_advisory: false
 ---
 # Smoke fixture
 FIX
-
-# Extract yaml_get (lines `yaml_get() {` through the matching `}`) and compute_scores
-# from eval-scoring.sh. Awk pattern match closing-brace-only-on-its-own-line.
-YAML_BLOCK=$(awk '/^yaml_get\(\) \{/,/^\}/' "$EVAL_SCRIPT")
-COMPUTE_BLOCK=$(awk '/^compute_scores\(\) \{/,/^\}/' "$EVAL_SCRIPT")
-
-if [ -z "$YAML_BLOCK" ] || [ -z "$COMPUTE_BLOCK" ]; then
-  echo "[FAIL] yaml_get or compute_scores not extractable from $EVAL_SCRIPT"
-  exit 3
-fi
-
-eval "$YAML_BLOCK"
-eval "$COMPUTE_BLOCK"
-
-# Sanity check the helpers loaded.
-if ! declare -F yaml_get >/dev/null || ! declare -F compute_scores >/dev/null; then
-  echo "[FAIL] eval of yaml_get/compute_scores did not register functions"
-  exit 3
-fi
 
 # Compute scores against the synthetic fixture.
 result=$(compute_scores "$FIXTURE")

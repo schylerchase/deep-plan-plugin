@@ -2,17 +2,19 @@
 #
 # eval-scoring.sh — golden-fixture eval for the deep-plan scoring algorithm (Phase 8 SCORE-01..04)
 #
-# Parallels tests/eval-caveman-rule.sh: same yaml_get / body_of helpers, same iteration shape,
-# same [PASS]/[FAIL] / summary block. Extends the analog with float arithmetic via awk and
-# a determinism re-run check.
+# Iterates skills/deep-plan/fixtures/scoring/*.md, computes scores per the algorithm in
+# references/scoring.md, and asserts each fixture's expected_* fields with 0.05 tolerance.
+# Re-runs each fixture twice and asserts byte-equal output for determinism.
+#
+# Helpers (yaml_get, body_of, validate_int, compute_scores) are defined in tests/lib-scoring.sh
+# and shared with tests/eval-trailer-smoke.sh. See that file for the public API contract.
 #
 # Fixture types:
 #   scoring_golden — single fixture type. Each fixture declares 9 input signals plus
 #                    expected_volume, expected_structure, expected_risk, expected_combined,
 #                    expected_model, expected_advisory; fixture 08 also declares
-#                    expected_borderline_hint. The harness computes scores from the inputs,
-#                    compares against expected_* with 0.05 tolerance, then re-runs and asserts
-#                    byte-equal output for determinism (success criterion #1).
+#                    expected_borderline_hint. Fixture 04 asserts an empty hint via
+#                    expected_borderline_hint: "" (locks WR-2 fix from Phase 8 review).
 #
 # Dependencies: bash, grep, awk, find. No jq, no yq, no python.
 #
@@ -20,9 +22,10 @@
 #   0 — all fixtures passed
 #   1 — one or more fixture assertions failed
 #   3 — fixtures directory does not exist
-#   4 — a fixture is missing a required frontmatter field
+#   4 — a fixture is missing a required frontmatter field, OR has an invalid signal value
+#       (non-numeric or negative; see validate_int in tests/lib-scoring.sh)
 #   5 — a fixture has an unknown fixture_type
-#   6 — numerical mismatch (computed score differs from expected_* beyond 0.05 tolerance)
+#   6 — numeric mismatch (computed score differs from expected_* beyond 0.05 tolerance)
 #   7 — determinism failure (same fixture produced different output on two consecutive runs)
 
 set -euo pipefail
@@ -32,164 +35,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$REPO_ROOT/skills/deep-plan/fixtures/scoring"
 
-# ── Tolerance for numerical comparison: both sides print to 1 decimal, so 0.05 is the
-#    smallest meaningful diff that still allows for awk float-rounding edge cases.
-SCORE_TOLERANCE="0.05"
-
-# ── Frontmatter parser: extract a key's value from between --- fences (copied verbatim) ──
-yaml_get() {
-  local file="$1"
-  local key="$2"
-  awk -v k="$key" '
-    BEGIN { fm = 0 }
-    /^---[[:space:]]*$/ {
-      if (fm == 0) { fm = 1; next }
-      else          { exit }
-    }
-    fm == 1 {
-      if (match($0, "^[[:space:]]*" k "[[:space:]]*:[[:space:]]*")) {
-        val = substr($0, RSTART + RLENGTH)
-        sub(/[[:space:]]+$/, "", val)
-        print val
-        exit
-      }
-    }
-  ' "$file"
-}
-
-# ── Extract body (everything after the second --- fence) ──
-body_of() {
-  awk '
-    BEGIN { fm = 0 }
-    /^---[[:space:]]*$/ {
-      fm++
-      next
-    }
-    fm >= 2 { print }
-  ' "$1"
-}
-
-# ── validate_int: assert value is a non-negative integer per the spec
-#    (references/scoring.md "Validation: Values must be non-negative integers").
-#    Empty string is allowed (treated as missing → caller decides fallback).
-#    Aborts the run with exit 4 on violation, matching the existing exit-code
-#    convention for fixture validation failures.
-validate_int() {
-  local field="$1"
-  local value="$2"
-  local fixture="$3"
-  # Empty values pass through (some fixtures legitimately omit input_tokens, etc.)
-  [ -z "$value" ] && return 0
-  if ! printf '%s' "$value" | grep -Eq '^[0-9]+$'; then
-    echo "ERROR: fixture $(basename "$fixture") has invalid value for $field: '$value' (must be non-negative integer)" >&2
-    exit 4
-  fi
-}
-
-# ── compute_scores: read inputs from frontmatter, compute three perspective scores +
-#    quadratic combine + threshold-mapped model + D-01 advisory + D-12 borderline_hint.
-#    Emits a 7-field pipe-delimited tuple: volume|structure|risk|combined|model|advisory|borderline_hint
-#
-#    Float-precision nudge: `+ 1e-9` inside printf "%.1f" defeats the float-binary edge-case
-#    where awk stores values like 0.15*10 as 1.49999... rather than exactly 1.5, so plain
-#    %.1f rounds down. NOTE: 1e-9 is ~7 orders of magnitude larger than Number.EPSILON
-#    (2.22e-16); the bash and JS layers are NOT arithmetically equivalent, only empirically
-#    aligned for the current 8 fixtures. See references/scoring.md ## Half-Up Rounding.
-compute_scores() {
-  local fixture="$1"
-  local files_modified
-  local tasks
-  local key_links
-  local artifacts
-  local truths
-  local novel
-  local checkpoints
-  local unknown_deps
-  local input_tokens
-  local bias
-
-  files_modified=$(yaml_get "$fixture" files_modified)
-  tasks=$(yaml_get "$fixture" tasks)
-  key_links=$(yaml_get "$fixture" key_links)
-  artifacts=$(yaml_get "$fixture" artifacts)
-  truths=$(yaml_get "$fixture" truths)
-  novel=$(yaml_get "$fixture" novel)
-  checkpoints=$(yaml_get "$fixture" checkpoints)
-  unknown_deps=$(yaml_get "$fixture" unknown_deps)
-  input_tokens=$(yaml_get "$fixture" input_tokens)
-  bias=$(yaml_get "$fixture" bias)
-
-  # Validate the 8 signal inputs + input_tokens per spec (non-negative integers).
-  # bias is a string ("quality" | "balanced" | "budget") so it's not validated here —
-  # the case statement below silently falls back to balanced for unknown values.
-  validate_int "files_modified" "$files_modified" "$fixture"
-  validate_int "tasks"          "$tasks"          "$fixture"
-  validate_int "key_links"      "$key_links"      "$fixture"
-  validate_int "artifacts"      "$artifacts"      "$fixture"
-  validate_int "truths"         "$truths"         "$fixture"
-  validate_int "novel"          "$novel"          "$fixture"
-  validate_int "checkpoints"    "$checkpoints"    "$fixture"
-  validate_int "unknown_deps"   "$unknown_deps"   "$fixture"
-  validate_int "input_tokens"   "$input_tokens"   "$fixture"
-
-  # Volume = sqrt(files_modified) * 1.5 + tasks * 0.3
-  local volume
-  volume=$(awk -v f="$files_modified" -v t="$tasks" 'BEGIN { v = sqrt(f) * 1.5 + t * 0.3; printf "%.1f", v + 1e-9 }')
-
-  # Structure = key_links * 3 + artifacts * 1.5 + truths * 0.5
-  local structure
-  structure=$(awk -v k="$key_links" -v a="$artifacts" -v tr="$truths" 'BEGIN { s = k * 3 + a * 1.5 + tr * 0.5; printf "%.1f", s + 1e-9 }')
-
-  # Risk = novel * 5 + checkpoints * 2 + unknown_deps * 3
-  local risk
-  risk=$(awk -v n="$novel" -v c="$checkpoints" -v u="$unknown_deps" 'BEGIN { r = n * 5 + c * 2 + u * 3; printf "%.1f", r + 1e-9 }')
-
-  # Combined = sqrt(structure^2 + risk^2 + 0.3 * volume^2)
-  local combined
-  combined=$(awk -v v="$volume" -v s="$structure" -v r="$risk" 'BEGIN { c = sqrt(s*s + r*r + 0.3*v*v); printf "%.1f", c + 1e-9 }')
-
-  # Threshold map (D-04): opus={quality:8, balanced:12, budget:20}, sonnet={quality:3, balanced:4, budget:6}
-  local opus_thresh=12
-  local sonnet_thresh=4
-  case "$bias" in
-    quality)  opus_thresh=8;  sonnet_thresh=3 ;;
-    balanced) opus_thresh=12; sonnet_thresh=4 ;;
-    budget)   opus_thresh=20; sonnet_thresh=6 ;;
-  esac
-
-  # Model selection: opus if combined >= opus_thresh, sonnet if combined >= sonnet_thresh, else haiku
-  local model="haiku"
-  if awk -v c="$combined" -v t="$opus_thresh" 'BEGIN { exit !(c >= t) }'; then
-    model="opus"
-  elif awk -v c="$combined" -v t="$sonnet_thresh" 'BEGIN { exit !(c >= t) }'; then
-    model="sonnet"
-  fi
-
-  # D-01 advisory: input_tokens > 180000 AND combined >= opus_thresh (strict AND gate)
-  local advisory="false"
-  if [ -n "$input_tokens" ]; then
-    if awk -v it="$input_tokens" -v c="$combined" -v t="$opus_thresh" 'BEGIN { exit !(it > 180000 && c >= t) }'; then
-      advisory="true"
-    fi
-  fi
-
-  # D-12 borderline hint: combined within ±10% of either threshold; choose the closer one.
-  # The opus hint only fires when combined < opus_thresh (user is BELOW the line and could
-  # bump bias to reach opus). At or above the threshold, the user already routes to opus,
-  # so suggesting "bump bias to quality if you want opus" is misleading. Mirrors the
-  # sonnet branch which already had a `c < ot` guard.
-  # If within ±10% of opus_thresh AND combined < opus_thresh → opus borderline hint
-  # Else if within ±10% of sonnet_thresh AND combined < opus_thresh → analogous sonnet hint
-  # Else empty string
-  local borderline_hint=""
-  if awk -v c="$combined" -v t="$opus_thresh" 'BEGIN { d = t - c; exit !(d > 0 && d <= 0.1 * t) }'; then
-    borderline_hint="close to opus threshold; bump bias to quality if you want opus"
-  elif awk -v c="$combined" -v t="$sonnet_thresh" -v ot="$opus_thresh" 'BEGIN { d = c - t; if (d < 0) d = -d; exit !(d <= 0.1 * t && c < ot) }'; then
-    borderline_hint="close to sonnet threshold; bump bias to balanced if you want sonnet"
-  fi
-
-  echo "$volume|$structure|$risk|$combined|$model|$advisory|$borderline_hint"
-}
+# ── Source shared helpers (yaml_get, body_of, validate_int, compute_scores) and
+#    the SCORE_TOLERANCE constant. The lib has no top-level side effects.
+# shellcheck source=tests/lib-scoring.sh
+. "$SCRIPT_DIR/lib-scoring.sh"
 
 # ── Precondition: fixtures dir must exist ──
 if [ ! -d "$FIXTURES_DIR" ]; then
@@ -237,7 +86,7 @@ while IFS= read -r fixture; do
 
       fail=0
 
-      # Numerical field assertions with 0.05 tolerance
+      # Numeric field assertions with 0.05 tolerance
       for pair in "vol:$vol:$exp_vol" "str:$str:$exp_str" "ris:$ris:$exp_ris" "com:$com:$exp_com"; do
         label=${pair%%:*}
         rest=${pair#*:}
@@ -245,7 +94,7 @@ while IFS= read -r fixture; do
         want=${rest#*:}
         diff=$(awk -v g="$got" -v w="$want" 'BEGIN { d = g - w; if (d < 0) d = -d; printf "%.3f", d }')
         if awk -v d="$diff" -v tol="$SCORE_TOLERANCE" 'BEGIN { exit !(d > tol) }'; then
-          echo "[FAIL] $name: $label numerical mismatch — computed $got, expected $want (diff $diff > $SCORE_TOLERANCE tolerance)"
+          echo "[FAIL] $name: $label numeric mismatch — computed $got, expected $want (diff $diff > $SCORE_TOLERANCE tolerance)"
           fail_count=$((fail_count + 1))
           exit 6
         fi
