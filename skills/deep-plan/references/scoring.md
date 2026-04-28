@@ -133,16 +133,23 @@ All score numbers display to **1 decimal place**, rounded half-up for determinis
 
 ```javascript
 function roundHalfUp1Decimal(x) {
-  // Number.EPSILON defeats float-binary edge cases (e.g., 1.005 * 10 === 10.04999...).
-  // ECMA-262: Math.round rounds half-values toward +∞ — half-up for positive scores.
-  return Math.round((x + Number.EPSILON) * 10) / 10;
+  // ECMA-262 Math.round already rounds positive halves toward +∞, which is
+  // the half-up rule we want. For the score domain (sums of small integers
+  // plus sqrt() outputs, all >= 0), naive scaling is sufficient: every
+  // current fixture combined value (2.2, 8.3, 12.0, 14.2, 14.8, 11.5, ...)
+  // rounds identically with or without an EPSILON nudge.
+  return Math.round(x * 10) / 10;
 }
-// Verified: roundHalfUp1Decimal(1.005) → 1.1, roundHalfUp1Decimal(2.45) → 2.5, roundHalfUp1Decimal(0.0) → 0.0
+// Verified empirically against all 8 golden fixtures via Node REPL.
+// Examples: roundHalfUp1Decimal(2.45) → 2.5, roundHalfUp1Decimal(0.15) → 0.2,
+//           roundHalfUp1Decimal(0.0) → 0.0.
 ```
 
-**Why not naive `Math.round(x * 10) / 10`:** Per Pitfall 1 in 08-RESEARCH.md, `Math.round(1.005 * 10) / 10` returns `1.0` (not `1.1`) because `1.005 * 10 === 10.049999999999999` in IEEE-754 double precision. The `Number.EPSILON` correction adds a 2.22e-16 nudge — cheap and effective for the score domain (small positive numbers, single-decimal output). Without it, success criterion #1 (determinism) fails silently when formula-equivalent inputs arrive from different code paths.
+**Known edge case — pseudo-halves like 1.005:** `Math.round(1.005 * 10) / 10` returns `1.0` (not `1.1`) because `1.005` stores in IEEE-754 as `1.00499999...` — by the time multiplication happens, the value is genuinely below the half-mark, so half-up correctly rounds it down. A `+ Number.EPSILON` nudge does NOT fix this: EPSILON (`2.22e-16`) is far too small to push `10.04999999999999893` past 10.05 in double precision. Earlier drafts of this doc claimed otherwise; that claim was empirically falsified (Node REPL: `Math.round((1.005 + Number.EPSILON) * 10) / 10` returns `1`, not `1.1`).
 
-**Bash mirror (for tests/eval-scoring.sh):** awk's `printf "%.1f"` exhibits the same float-binary edge-case in some implementations. The test harness uses `printf "%.1f", x + 1e-9` as the equivalent nudge. Both layers must produce identical rounded outputs to satisfy success criterion #1.
+**Score-domain implication:** No score formula in this file produces a "true 1.005" — `volume`, `structure`, `risk` are sums of integer-weighted signals plus `sqrt(integer) * 1.5`, and `combined` is a `sqrt` of the sum of squares. None of the eight golden fixtures lands an intermediate value at a pseudo-half where the IEEE-754 representation matters. If a future signal weighting scheme introduces such a value, swap to a higher-precision rounder (e.g., fall to a string-formatting library or use `Math.round` after `Number((x).toPrecision(15))` normalization) and add a fixture that locks the new behavior.
+
+**Bash mirror (for tests/eval-scoring.sh):** awk's `printf "%.1f"` rounds half-to-even by default in many implementations, and stores values like `0.15 * 10` as `1.49999...` rather than exactly `1.5`. The harness uses `printf "%.1f", x + 1e-9` to nudge such pseudo-halves above the threshold. Note: `1e-9` is roughly seven orders of magnitude larger than `Number.EPSILON` (`2.22e-16`); the two layers are NOT arithmetically equivalent. They happen to agree on every current fixture's output because no fixture lands an intermediate score in the gap where they would diverge. Future contributors adding fixtures should re-verify byte-equal output between the JS recipe and the bash harness, especially for combined values that fall on a `.x5` boundary.
 
 ## Signal Extraction (D-13, D-15, D-16)
 
