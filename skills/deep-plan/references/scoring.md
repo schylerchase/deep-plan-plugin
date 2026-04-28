@@ -3,7 +3,7 @@
 ## Status
 
 **Version:** v1 (Phase 8 — Adaptive Model Routing milestone v1.1)
-**Loaded by:** SKILL.md Step 9.5 (model routing decision)
+**Loaded by:** SKILL.md Step 9.5 (model routing decision; D-05 pipeline placement, D-06 in-memory routing object, D-07 banner-as-verification, D-08 always-runs including --skip-research)
 **Loaded on demand:** This file is read once per deep-plan run, only when Step 9.5 executes. Per D-14, all formulas, thresholds, byte ratios, signal extraction heuristics, and worked examples live here — SKILL.md Step 9.5 must NOT inline any formula or threshold value.
 **Phase 9 dependency:** When `.planning/config.json` lacks a `deep_plan.model_routing` block, Phase 9 falls back to the defaults in this file. The schema below is stable across versions; field names will not be renamed without a major version bump.
 
@@ -77,7 +77,7 @@ elif combined >= sonnet_thresholds[bias] → sonnet
 else                                    → haiku
 ```
 
-**Comparison rule (locked, per 08-RESEARCH.md Pitfall 4):** Use `>=` (greater-than-or-equal). A phase scoring exactly at a threshold value maps to the higher-tier model. This matches the natural-language framing "score is at least this complex." Worked example: a phase with combined = 12.0 under balanced bias routes to opus, not sonnet (see fixture `04-borderline-equal.md`).
+**Comparison rule (D-04, locked per 08-RESEARCH.md Pitfall 4):** Use `>=` (greater-than-or-equal). A phase scoring exactly at a threshold value maps to the higher-tier model. This matches the natural-language framing "score is at least this complex." Worked example: a phase with combined = 12.0 under balanced bias routes to opus, not sonnet (see fixture `04-borderline-equal.md`).
 
 **Bias selection:** Bias is read from `.planning/config.json` `deep_plan.model_routing.bias` field at Phase 9 (not Phase 8). Phase 8 defaults bias to `balanced` until Phase 9 plumbs the config; the default is encoded in this file as the canonical fallback.
 
