@@ -57,7 +57,7 @@ Deep-plan must be visually distinguishable from GSD and CE throughout execution.
 
     ── deep-plan [{current}/{total}] {Step Name} ──────────
 
-Total = 12 with `--review`, 11 without (feasibility review skipped).
+Total = 12 with `--review`, 11 without (feasibility review skipped). Step 9.5 (routing decision) is counted as one task; its announce header reads `[9.5/{total}]`.
 
 **Detail lines** — 1-2 lines after each header showing what was found/done. Use ✓/✗ for availability.
 
@@ -77,9 +77,9 @@ Detect caveman deterministically — do not guess from context:
 CAVEMAN_INSTALLED=$(claude plugin list 2>/dev/null | grep -q "caveman@caveman" && echo yes || echo no)
 ```
 
-If `CAVEMAN_INSTALLED=yes`, read `references/caveman-rule.md` and build an override map for three v2 signals requiring full prose: HIGH feasibility findings, AskUserQuestion blocks, mid-flight scope pivots. If `no`, skip silently — no override map, no further caveman references this run.
+If `CAVEMAN_INSTALLED=yes`, read `references/caveman-rule.md` and build an override map for four v2 signals requiring full prose: HIGH feasibility findings, AskUserQuestion blocks, mid-flight scope pivots, and routing-decision banner output (Step 9.5). If `no`, skip silently — no override map, no further caveman references this run.
 
-Enforced at: questions (Steps 2, 7), pivots (Step 8), feasibility (Step 11).
+Enforced at: questions (Steps 2, 7), pivots (Step 8), routing decision (Step 9.5), feasibility (Step 11).
 </step>
 
 <step name="parse_args">
@@ -185,7 +185,7 @@ Parse the user's response (number or free text describing their choice). If inva
 **After phase confirmed:**
 1. Display the opening banner (see progress protocol)
 2. TaskCreate one task per remaining step (prefix "Deep Plan:"), e.g., "Deep Plan: Load GSD context"
-3. Total tasks = 10 (steps 2-11) without `--review`, 11 (steps 2-12) with `--review`
+3. Total tasks = 11 (steps 2-11 + step 9.5) without `--review`, 12 (steps 2-12 + step 9.5) with `--review`
 </step>
 
 <step name="load_gsd_context">
@@ -400,6 +400,82 @@ Path-portability rule: tilde paths only (`@~/...`); never `@$HOME/...` (PORT-01)
 
 **Announce:** `── deep-plan [9/{total}] Plan written ──`
 Detail: `.planning/phases/{phase_dir}/{padded_phase}-{MM}-PLAN.md` — `Units: {N} | Test scenarios: {N} | Must-haves: {truths} truths, {artifacts} artifacts, {links} links`
+</step>
+
+<step name="scoring">
+## Step 9.5: Model Routing Decision
+
+**Read `references/scoring.md`** for: signal extraction heuristics, the three perspective formulas, the byte-ratio table, the threshold map, the half-up rounding helper with Number.EPSILON correction, the banner format with machine-readable trailer, and the worked-examples / golden-fixture index.
+
+This step always runs, including when `--skip-research` was passed. Missing CE-derived signals fall back to 0 per D-08 — `novel` and `unknown_deps` default to 0 when feasibility/research output is absent, and the banner appends `(reduced confidence: --skip-research used)`.
+
+**Extract the 8 signals from in-memory pipeline state:**
+
+1. Read the `units` array produced by Step 8 and the `must_haves` object produced by Step 8.
+2. For each signal in `references/scoring.md` ## Signal Extraction:
+   - Compute the auto value per the heuristic listed for that signal.
+   - For `files_modified`, deduplicate paths across all `unit.files` arrays (D-15) — same file referenced by 3 units counts once.
+   - For `checkpoints`, parse CONTEXT.md for the `<questions>` block. If absent, default to 0 and remember to annotate the banner.
+3. Read CONTEXT.md once for the optional `<signals>` override block (D-13). Parse with the awk-based flat-key:value extractor pattern from `tests/eval-caveman-rule.sh`. Validate each value is a non-negative integer; reject non-numeric or negative values per signal and remember to annotate the banner.
+4. Merge: each key in `<signals>` REPLACES the auto value; missing keys leave the auto value in place.
+
+**Compute the three perspectives and the combined score per the formulas in `references/scoring.md`.** Do NOT inline the formulas here — call them out by name (volume, structure, risk, combined) and trust the reference doc for the math.
+
+**Apply the threshold map from `references/scoring.md` to the rounded combined score** to determine the recommended model. Use `>=` comparison (locked rule from Pitfall 4 mitigation). Default bias to `balanced` until Phase 9 plumbs the `deep_plan.model_routing.bias` config field.
+
+**Estimate input tokens** by walking the deduplicated `files_modified` set, calling `wc -c` (or equivalent) on each path, and dividing by the per-extension byte ratio from the table in `references/scoring.md`. Sum the per-file estimates. The default ratio for unknown extensions is 3.0 — conservative high, biases toward triggering the advisory rather than missing it.
+
+**Determine the phase-split advisory:** strict AND gate (D-01) — `input_tokens > 180000 AND combined >= opus_thresholds[bias]`. Determine the borderline hint (D-12): if combined is within ±10% of either threshold, prepare the appropriate bias-bump suggestion.
+
+**Build the in-memory routing-decision object** (D-06) with snake_case field names per the convention in `references/scoring.md`:
+
+- `volume_score`, `structure_score`, `risk_score`, `combined_score` — rounded to 1 decimal via the half-up helper
+- `recommended_model` — one of `opus`, `sonnet`, `haiku`
+- `bias` — the active bias used for threshold mapping
+- `threshold` — the threshold value compared against (e.g., 12 for opus/balanced)
+- `input_tokens_estimate` — integer
+- `advisory` — boolean
+- `borderline_hint` — string or null
+- `reduced_confidence` — boolean (true when `--skip-research` was passed)
+- `signals` — the merged signal values (post-override)
+- `signal_overrides_rejected` — array of any `<signals>` keys whose values were rejected for invalidity
+
+**Hold this object in scope.** Do NOT write it to a sidecar file (D-06). Phase 11 will read it from in-memory state to populate PLAN.md frontmatter; Phase 8 emits it only via the banner below.
+
+**Emit the banner** using the format specified in `references/scoring.md` ## Banner Format. The banner has 3 required lines plus optional advisory / borderline / reduced-confidence lines plus the machine-readable trailer comment. The full banner is reproduced below for verification (per success criterion #5 — three perspective scores visible):
+
+```
+── deep-plan [9.5/{total}] Routing decision ──
+Volume: {V.V} | Structure: {S.S} | Risk: {R.R} → Combined: {C.C}
+Recommendation: {model} ({bias} bias, threshold {T})
+{advisory line if D-01 triggered}
+{borderline hint if D-12 triggered}
+{(reduced confidence: --skip-research used) if applicable}
+<!-- DEEP_PLAN_ROUTING: model={model} combined={C.C} volume={V.V} structure={S.S} risk={R.R} bias={bias} threshold={T} advisory={true|false} -->
+```
+
+**Phase-split advisory mode-aware behavior (D-02):**
+
+When `advisory: true`, behavior depends on the active mode (locked for Phase 9 to provide; default `confirm` until then):
+
+**If `mode: auto`**, render the advisory line as part of the banner and continue planning uninterrupted.
+
+**If text_mode is active** (per Step 2 detection), present as a plain-text numbered list:
+```
+{advisory message — D-03 diagnostic detail with input tokens, combined score, top 2 contributing signals by weighted contribution}
+1. Continue with current scope
+2. Stop and split this phase manually
+```
+Type a number to choose. Parse response (number or free text). If invalid, re-prompt.
+
+**Otherwise** (mode: confirm, no --text flag), use AskUserQuestion with two options mirroring the list above.
+
+If the user chooses "Stop and split this phase manually", print `Run: /gsd-add-phase to split this phase` and stop the deep-plan run cleanly. The PLAN.md from Step 9 has already been written — the user can revisit it after splitting.
+
+**Announce:** `── deep-plan [9.5/{total}] Routing decision ──`
+Detail: `Volume: {V} | Structure: {S} | Risk: {R} → Combined: {C} | Model: {model} ({bias} bias){advisory_suffix}`
+
+*Caveman override: routing-decision banner is always full prose regardless of caveman mode (Step 1 override map). New v2 signal — see `references/caveman-rule.md` Signal: Routing Decision Banner.*
 </step>
 
 <step name="plan_validation">
