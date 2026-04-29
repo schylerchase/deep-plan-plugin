@@ -22,7 +22,7 @@ description: |
   Direct validation request — user wants to verify a plan before running gsd-execute-phase.
   </commentary>
   </example>
-model: inherit
+model: claude-sonnet-4-6
 color: yellow
 tools:
   - Read

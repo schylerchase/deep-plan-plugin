@@ -175,6 +175,7 @@ if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugin
 - `ux-reviewer` — evaluates frontend code for UX quality (state design, accessibility, interaction patterns, visual design)
 - `frontend-design` — UX-first design methodology skill (information architecture, state design, accessibility, performance)
 - `/ux-review` — command that runs the reviewer and offers to fix findings
+- `/deep-plan-configure` — project-local setup wizard for adaptive model routing (`mode`, `pin`, `bias`, profile capture, advanced overrides)
 - `/deep-plan-doctor` — diagnostic command that verifies install health and project readiness, with auto-fix for fixable issues
 
 ### Step 4: Install deep-plan
@@ -210,6 +211,16 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 /deep-plan 18 --skip-research  # Skip CE codebase research (faster)
 /deep-plan 18 --text    # Plain-text prompts instead of interactive UI
 ```
+
+On first run in a project, `/deep-plan` opens the model-routing setup wizard if `.planning/config.json` lacks `deep_plan.model_routing`. To configure or edit it directly:
+
+```bash
+/deep-plan-configure          # Setup or edit routing config
+/deep-plan-configure --text   # Plain-text prompts
+/deep-plan-configure --reset  # Rerun the full setup wizard
+```
+
+The wizard writes only `.planning/config.json` and preserves unrelated GSD project settings. It captures `mode`, `pin`, `bias`, the setup-time GSD profile, and optional advanced thresholds/weights.
 
 ### UX Review
 
@@ -255,7 +266,7 @@ Run it when deep-plan feels broken, before running `/deep-plan` for the first ti
 5. **Asks 0-2 scoping questions** informed by GSD's locked decisions — only asks about things that materially affect scope or architecture
 6. **Structures implementation units** with file paths, test scenarios, patterns to follow, and verification criteria
 7. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
-8. **Computes routing decision** — analyzes phase metadata (file count, signal density, risk markers) across three perspectives (volume / structure / risk), combines via `sqrt(structure² + risk² + 0.3 × volume²)`, and emits a `<!-- DEEP_PLAN_ROUTING -->` trailer in the plan with the score breakdown and recommended model (haiku / sonnet / opus). Advisory in v1.1 phase 8; per-project config and bias overrides ship in phases 9-10. See [`references/scoring.md`](skills/deep-plan/references/scoring.md) for the full contract (formulas, byte ratios, thresholds, signal extraction).
+8. **Computes routing decision** — analyzes phase metadata (file count, signal density, risk markers) across three perspectives (volume / structure / risk), combines via `sqrt(structure² + risk² + 0.3 × volume²)`, and emits a `<!-- DEEP_PLAN_ROUTING -->` trailer in the plan with the score breakdown and recommended model (haiku / sonnet / opus). Per-project config and bias overrides are written by `/deep-plan-configure`. See [`references/scoring.md`](skills/deep-plan/references/scoring.md) for the full contract (formulas, byte ratios, thresholds, signal extraction), and [`references/config.md`](skills/deep-plan/references/config.md) for the routing config schema.
 9. **Validates plan structure** with the `plan-validator` agent — catches frontmatter errors, broken @-references, and invalid task XML before execution
 10. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
 
@@ -329,6 +340,8 @@ Unit 1: Extract validation constants
 ```html
 <!-- DEEP_PLAN_ROUTING: model=sonnet combined=6.8 volume=5.8 structure=6.0 risk=0.0 bias=balanced threshold=12 advisory=false -->
 ```
+
+**Routing frontmatter** — PLAN.md also includes an `executor_model` field and a `model_recommendation` block with the same score breakdown. Downstream executors can read `executor_model`, while humans can inspect `model_recommendation` to see the recommended model, selected executor model, selection reason, bias, threshold, scores, token estimate, and advisory flags.
 
 `advisory=true` flags phases that exceed the 180k input-token budget at high complexity (recommend phase split). The full contract — byte ratios per file extension, threshold tables for the three bias profiles (quality / balanced / budget), and signal extraction heuristics — lives in [`skills/deep-plan/references/scoring.md`](skills/deep-plan/references/scoring.md) so the math is reviewable without reading SKILL.md.
 

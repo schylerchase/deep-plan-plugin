@@ -34,6 +34,7 @@ Write to: `.planning/phases/{padded_phase}-{slug}/{padded_phase}-{MM}-PLAN.md`
 | `{N}` | Phase number |
 | `{phase_name}` | ROADMAP phase header |
 | `{phase_dir}` | `.planning/phases/{padded_phase}-{slug}` |
+| `{routing_decision.*}` | Step 9.5 routing decision object; Step 9 writes placeholders and Step 9.5 replaces them before Step 10 validation |
 
 ## Full template body
 
@@ -48,6 +49,21 @@ files_modified:
   - {all files from all units}
 autonomous: true
 requirements: [{requirement IDs from ROADMAP}]
+executor_model: "{routing_decision.executor_model}"
+model_recommendation:
+  recommended_model: "{routing_decision.recommended_model}"
+  executor_model: "{routing_decision.executor_model}"
+  selection_reason: "{routing_decision.selection_reason}"
+  bias: "{routing_decision.bias}"
+  threshold: {routing_decision.threshold}
+  scores:
+    volume: {routing_decision.volume_score}
+    structure: {routing_decision.structure_score}
+    risk: {routing_decision.risk_score}
+    combined: {routing_decision.combined_score}
+  input_tokens_estimate: {routing_decision.input_tokens_estimate}
+  advisory: {routing_decision.advisory}
+  reduced_confidence: {routing_decision.reduced_confidence}
 
 must_haves:
   truths:
@@ -145,3 +161,4 @@ After completion, create .planning/phases/{phase_dir}/{padded_phase}-{MM}-SUMMAR
 - Path-portability rule: use `@~/...` for home-relative paths (PORT-01). Do not use `@$HOME/...`.
 - threat_model section is conditional — omit when not applicable.
 - All `@-references` in execution_context and context blocks must resolve at execute-plan time. Use tilde or repo-relative paths only.
+- Step 9 writes the PLAN.md body, then Step 9.5 computes the routing decision and updates the frontmatter fields above before Step 10 validation. The `executor_model` and `model_recommendation` block must always come from the same in-memory routing decision object.

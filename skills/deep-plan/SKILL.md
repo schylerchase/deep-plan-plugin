@@ -14,6 +14,7 @@ allowed-tools:
   - AskUserQuestion
   - Skill
   - Task
+  - Agent
 ---
 
 # Deep Plan: GSD Context + CE Implementation Planning
@@ -84,6 +85,23 @@ If `CAVEMAN_INSTALLED=yes`, read `references/caveman-rule.md` and build an overr
 Resolve `deep_plan.model_routing` config — once per run, fall back to defaults silently when absent and with a banner notice when malformed:
 
 ```bash
+PLANNING_EXISTS=$(test -d .planning && echo yes || echo no)
+GSD_TOOLS_EXISTS=$(test -f "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" && echo yes || echo no)
+CONFIG_HAS_MODEL_ROUTING=$(node -e "
+const fs = require('fs');
+const path = process.cwd() + '/.planning/config.json';
+try {
+  if (!fs.existsSync(path)) {
+    process.stdout.write('no');
+    process.exit(0);
+  }
+  const c = JSON.parse(fs.readFileSync(path, 'utf8'));
+  const block = c?.deep_plan?.model_routing;
+  process.stdout.write(block && typeof block === 'object' && !Array.isArray(block) ? 'yes' : 'no');
+} catch (e) {
+  process.stdout.write('error');
+}
+" 2>/dev/null)
 CONFIG_READ=$(node -e "
 const fs = require('fs');
 const path = process.cwd() + '/.planning/config.json';
@@ -111,6 +129,12 @@ try {
 CONFIG_BLOCK=$(printf '%s\n' "$CONFIG_READ" | sed -n '1p')
 CONFIG_READ_NOTICE=$(printf '%s\n' "$CONFIG_READ" | sed -n '2p')
 ```
+
+If `PLANNING_EXISTS=yes`, `GSD_TOOLS_EXISTS=yes`, and `CONFIG_HAS_MODEL_ROUTING=no`, the `model_routing` block is missing. **Read `references/setup-wizard.md`** for: the inline missing-config trigger, the six-question first-run flow, text-mode fallback prompts, GSD profile verification, structured JSON write helper, and the exact `deep_plan.model_routing` schema to write. Run the inline setup wizard before resolving config for the rest of this deep-plan invocation. After the wizard writes `.planning/config.json`, re-run the `CONFIG_READ` snippet above so `CONFIG_BLOCK` reflects the newly written block.
+
+If `PLANNING_EXISTS=no` or `GSD_TOOLS_EXISTS=no`, skip the inline wizard entirely and let Step 2's prerequisite gate print the existing actionable error. Do not create `.planning/config.json` outside an initialized GSD project.
+
+If `CONFIG_HAS_MODEL_ROUTING=error`, do not run the wizard automatically. Preserve Phase 9 lenient behavior: use all defaults, keep `CONFIG_READ_NOTICE`, and point the user at `/deep-plan-doctor` for repair.
 
 **Read `references/config.md`** for: the JSON schema, default values sourced from `references/scoring.md`, the deep-merge rules per D-08, lenient field-level fallback narrative per D-09, and the resolved-config object shape per D-12.
 
@@ -443,6 +467,8 @@ For each unit, define:
 
 Substitute live values per the variable table in the reference. Write to `.planning/phases/{padded_phase}-{slug}/{padded_phase}-{MM}-PLAN.md`.
 
+For `executor_model` and `model_recommendation` placeholders, write the frontmatter block in the template shape but leave routing values for Step 9.5 to fill. Step 9.5 owns the routing decision and must replace those placeholders before Step 10 validation.
+
 Path-portability rule: tilde paths only (`@~/...`); never `@$HOME/...` (PORT-01).
 
 **Announce:** `── deep-plan [9/{total}] Plan written ──`
@@ -484,10 +510,74 @@ This step always runs, including when `--skip-research` was passed. Missing CE-d
 - `advisory` — boolean
 - `borderline_hint` — string or null
 - `reduced_confidence` — boolean (true when `--skip-research` was passed)
+- `executor_model` — the model downstream executors should use after pins and auto-mode budget caps are applied
+- `selection_reason` — one of `recommended`, `pinned`, `gsd_profile_cap`, or `no_gsd_profile`
 - `signals` — the merged signal values (post-override)
 - `signal_overrides_rejected` — array of any `<signals>` keys whose values were rejected for invalidity
 
-**Hold this object in scope.** Do NOT write it to a sidecar file (D-06). Phase 11 will read it from in-memory state to populate PLAN.md frontmatter; Phase 8 emits it only via the banner below.
+**Determine `executor_model` from the same routing decision object:**
+
+1. If `resolved_config.pin` is non-null, set `executor_model = resolved_config.pin` and `selection_reason = "pinned"`.
+2. Else if `resolved_config.mode = "auto"`, read the current GSD profile:
+   ```bash
+   GSD_PROFILE=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get workflow.profile 2>/dev/null)
+   ```
+   Apply the budget-cap map exactly: `quality -> opus`, `balanced -> sonnet`, `budget -> sonnet`.
+   - If `GSD_PROFILE` is empty, keep `executor_model = recommended_model` and set `selection_reason = "no_gsd_profile"`.
+   - If `recommended_model` is above the mapped cap, set `executor_model` to the cap and `selection_reason = "gsd_profile_cap"`.
+   - If `recommended_model` is at or below the cap, keep `executor_model = recommended_model` and `selection_reason = "recommended"`.
+3. Else set `executor_model = recommended_model` and `selection_reason = "recommended"`.
+
+Use model ordering `haiku < sonnet < opus` for cap comparison. A cap never upgrades a lower recommendation.
+
+**Hold this object in scope.** Do NOT write it to a sidecar file (D-06). Immediately update the PLAN.md written in Step 9 so its frontmatter contains:
+
+```yaml
+executor_model: "{executor_model}"
+model_recommendation:
+  recommended_model: "{recommended_model}"
+  executor_model: "{executor_model}"
+  selection_reason: "{selection_reason}"
+  bias: "{bias}"
+  threshold: {threshold}
+  scores:
+    volume: {volume_score}
+    structure: {structure_score}
+    risk: {risk_score}
+    combined: {combined_score}
+  input_tokens_estimate: {input_tokens_estimate}
+  advisory: {advisory}
+  reduced_confidence: {reduced_confidence}
+```
+
+The frontmatter block and the routing banner must be sourced from the same in-memory routing decision. Step 10 validation runs only after this frontmatter update.
+
+**Append routing telemetry** after the frontmatter update succeeds. Use structured JSON parse/update/write on `.planning/config.json`; never overwrite unrelated keys. Append one object to `_telemetry.decisions[]` and preserve all existing entries:
+
+```json
+{
+  "timestamp": "{ISO-8601 timestamp}",
+  "phase_id": "{padded_phase}-{slug}",
+  "plan_path": "{path to written PLAN.md}",
+  "recommended_model": "{recommended_model}",
+  "executor_model": "{executor_model}",
+  "selection_reason": "{selection_reason}",
+  "override_flag": {override_flag},
+  "scores": {
+    "volume": {volume_score},
+    "structure": {structure_score},
+    "risk": {risk_score},
+    "combined": {combined_score}
+  },
+  "bias": "{bias}",
+  "threshold": {threshold},
+  "input_tokens_estimate": {input_tokens_estimate},
+  "advisory": {advisory},
+  "reduced_confidence": {reduced_confidence}
+}
+```
+
+If `.planning/config.json` is malformed, do not rewrite it. Emit a warning that telemetry was skipped and point the user at `/deep-plan-doctor`. Missing `_telemetry` or `_telemetry.decisions` should be created; existing decision entries must remain intact.
 
 **Emit the banner** using the format specified in `references/scoring.md` ## Banner Format. The banner has 3 required lines plus optional advisory / borderline / reduced-confidence lines plus the machine-readable trailer comment. The full banner is reproduced below for verification (per success criterion #5 — three perspective scores visible):
 
@@ -552,22 +642,32 @@ Detail: `Launching feasibility-reviewer against PLAN.md...`
 
 If `--review` flag was passed:
 
-Spawn the CE feasibility reviewer:
+Select the feasibility reviewer model explicitly:
+
+```bash
+feasibility_model="opus"
+```
+
+Explicit `--review` always forces the feasibility reviewer model to opus regardless of inherited model, `executor_model`, or GSD profile cap. Quality wins because the user opted into a feasibility pass. If a future non-explicit feasibility path is added, it may set `feasibility_model="$executor_model"` from the Step 9.5 routing decision instead.
+
+Spawn the CE feasibility reviewer with the Agent tool's `model` parameter:
 
 ```
-Task compound-engineering:document-review:feasibility-reviewer(
-  "Review this plan for feasibility — will the proposed technical approach 
-  survive contact with reality?
-  
+Agent(
+  subagent_type="compound-engineering:ce-feasibility-reviewer",
+  model: "$feasibility_model",
+  description="Feasibility review for {path to written PLAN.md}",
+  prompt="Review this plan for feasibility — will the proposed technical approach survive contact with reality?
+
   Plan: {path to written PLAN.md}
   Codebase: {project root}
-  
+
   Focus on:
   1. Will the implementation order work given actual code dependencies?
   2. Are there build/deployment issues the plan misses?
   3. Are file paths and code references accurate?
   4. Are the risks realistic and mitigations sufficient?
-  
+
   Be critical. Flag anything that would fail during implementation."
 )
 ```

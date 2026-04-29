@@ -108,34 +108,43 @@ Only run if Tier 1 passed, or user chose to continue anyway, or `--project` was 
 - Glob or Read for `.planning/ROADMAP.md` in the current working directory.
 - If not found, print `[SKIP] Not inside a GSD project — no project checks to run.` and jump to Phase 4.
 
-If found, run these checks with the same `[N/5]` output format:
+If found, run these checks with the same `[N/6]` output format:
 
-**Check 1/5: ROADMAP.md parses**
+**Check 1/6: ROADMAP.md parses**
 - Read `.planning/ROADMAP.md`.
 - Look for at least one phase heading (e.g., `## Phase 18:` or similar — match common GSD roadmap formats).
 - On FAIL: `ROADMAP.md exists but may be malformed. Run /gsd-health for diagnosis.`
 
-**Check 2/5: Identify next phase to plan**
+**Check 2/6: Identify next phase to plan**
 - Scan ROADMAP.md for the first uncompleted/unplanned phase (look for unchecked boxes, phase entries without a PLAN.md reference, or whatever convention the roadmap uses).
 - Report: `Next phase: {N} — {title}` or `[OK] All phases complete, nothing to plan.`
 - This is informational, never fails — but captures the phase number used by subsequent checks.
 
-**Check 3/5: CONTEXT.md exists for target phase**
+**Check 3/6: CONTEXT.md exists for target phase**
 - Using the phase number from Check 2, look for `CONTEXT.md` under `.planning/phases/{phase_dir}/` (try common dir patterns: `{N}-*`, `phase-{N}-*`).
 - If Check 2 reported nothing to plan, mark this check `[OK] No target phase`.
 - On FAIL: `CONTEXT.md required before planning phase {N}. Run /gsd-discuss-phase {N} first.`
 
-**Check 4/5: RESEARCH.md freshness**
+**Check 4/6: RESEARCH.md freshness**
 - Check for `RESEARCH.md` in the same phase directory.
 - If missing: `[WARN] No RESEARCH.md — deep-plan will operate in cold-start mode (more tokens, slower). Run /gsd-research-phase {N} for warm-start.`
 - If present, check modification time via `stat` or `ls -l`. If older than 14 days: `[WARN] RESEARCH.md is {age} days old — consider re-running /gsd-research-phase {N}.`
 - Otherwise: `[OK] RESEARCH.md present and fresh`
 
-**Check 5/5: GSD warm-start intel**
+**Check 5/6: GSD warm-start intel**
 - Glob for `.planning/intel/deps.json`, `files.json`, `apis.json`, `arch.md`.
 - Report: `{present}/4 intel files present`.
 - If 0: `[WARN] No intel — warm-start unavailable. Run /gsd-scan or /gsd-map-codebase for faster CE research.`
 - If any present: `[OK] Warm-start available ({present}/4 files)`
+
+**Check 6/6: model_routing config and GSD profile drift**
+- Parse `.planning/config.json` as JSON. If malformed: `[WARN] config.json malformed — deep-plan will use defaults. Run /deep-plan-doctor after fixing JSON, then /deep-plan-configure.`
+- If `deep_plan.model_routing` is missing: `[WARN] model_routing config missing — run /deep-plan-configure before the next /deep-plan run.`
+- If present, read `deep_plan.model_routing.gsd_profile_at_setup`.
+- Read current GSD profile with `gsd-tools.cjs config-get model_profile`; if empty, fall back to `gsd-tools.cjs config-get workflow.profile`.
+- If `gsd_profile_at_setup` is `null` or empty: `[WARN] model_routing exists but no GSD profile was captured — run /deep-plan-configure to sync profile.`
+- If both setup-time and current profiles exist but differ: `[WARN] GSD profile drift: setup captured {old}, current is {current}. Run /deep-plan-configure to sync profile.`
+- Otherwise: `[OK] model_routing present; GSD profile unchanged ({profile}).`
 
 ### Phase 4: Remediation Report
 
@@ -203,7 +212,7 @@ Next: /deep-plan {N}              (auto-detect phase)
 ## Output Discipline
 
 - Always print the banner first — users need to see which tool is running.
-- Always print the step counter `[N/6]` (Tier 1) or `[N/5]` (Tier 2) so progress is visible even when output scrolls.
+- Always print the step counter `[N/6]` (Tier 1) or `[N/6]` (Tier 2) so progress is visible even when output scrolls.
 - Be terse in `[OK]` lines, verbose in `[FAIL]` lines — users who need the fix want the fix inline, not buried.
 - Use the structured text format above as the product; avoid emoji, color escapes, or noise.
 
