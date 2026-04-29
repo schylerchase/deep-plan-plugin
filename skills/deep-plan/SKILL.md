@@ -79,6 +79,35 @@ CAVEMAN_INSTALLED=$(claude plugin list 2>/dev/null | grep -q "caveman@caveman" &
 
 If `CAVEMAN_INSTALLED=yes`, read `references/caveman-rule.md` and build an override map for four v2 signals requiring full prose: HIGH feasibility findings, AskUserQuestion blocks, mid-flight scope pivots, and routing-decision banner output (Step 9.5). If `no`, skip silently — no override map, no further caveman references this run.
 
+### Config resolution
+
+Resolve `deep_plan.model_routing` config — once per run, fall back to defaults silently when absent:
+
+```bash
+CONFIG_BLOCK=$(node -e "
+try {
+  const c = require('$(pwd)/.planning/config.json');
+  process.stdout.write(JSON.stringify(c?.deep_plan?.model_routing ?? {}));
+} catch (e) {
+  process.stdout.write('{}');
+}
+" 2>/dev/null)
+```
+
+**Read `references/config.md`** for: the JSON schema, default values sourced from `references/scoring.md`, the deep-merge rules per D-08, lenient field-level fallback narrative per D-09, and the resolved-config object shape per D-12.
+
+Apply the resolution algorithm from `references/config.md`: deep-merge `CONFIG_BLOCK` into the defaults sourced from `references/scoring.md`; for each malformed field, fall back to the default and append a one-line banner notice (cap at 3 lines, summarize remainder as `+N more, see /deep-plan-doctor`). Compute `_source` per the rule in `references/config.md` ## Resolved-Config Object Shape: `"defaults"` when no fields came from config, `"config"` when every schema leaf was provided and validated cleanly, `"merged"` when the user provided some fields and defaults backfilled the rest (or any field was rejected via lenient fallback).
+
+Hold the resolved-config object in skill scope as `resolved_config`. Downstream steps consume it:
+- Step 9.5 reads `resolved_config.bias` for the threshold map.
+- Step 9.5 reads `resolved_config.weight_overrides.{formula, signals}` and `resolved_config.context_thresholds` for any user-overridden scoring math.
+- Phase 11 (future) reads `resolved_config.gsd_profile_at_setup` for PLAN.md frontmatter.
+- Phase 12 (future) doctor reads `resolved_config.gsd_profile_at_setup` to detect drift against current GSD profile.
+
+When `resolved_config.pin` is non-null, Step 9.5 bypasses scoring entirely (D-02) — the routing banner reads `model={pin} pinned=true (scoring skipped)` instead of the score breakdown.
+
+Banner notices (one line per malformed field, max 3) ride the existing routing-decision banner exemption from caveman compression — no new caveman v2 signal is needed.
+
 Enforced at: questions (Steps 2, 7), pivots (Step 8), routing decision (Step 9.5), feasibility (Step 11).
 </step>
 
@@ -421,7 +450,7 @@ This step always runs, including when `--skip-research` was passed. Missing CE-d
 
 **Compute the three perspectives and the combined score per the formulas in `references/scoring.md`.** Do NOT inline the formulas here — call them out by name (volume, structure, risk, combined) and trust the reference doc for the math.
 
-**Apply the threshold map from `references/scoring.md` to the rounded combined score** to determine the recommended model. Use `>=` comparison (locked rule from Pitfall 4 mitigation). Default bias to `balanced` until Phase 9 plumbs the `deep_plan.model_routing.bias` config field.
+**Apply the threshold map from `references/scoring.md` to the rounded combined score** to determine the recommended model. Use `>=` comparison (locked rule from Pitfall 4 mitigation). Read `resolved_config.bias` from the resolved-config object set in Step 1 (per `references/config.md` ## Resolved-Config Object Shape) — defaults to `balanced` when config is absent (`_source: "defaults"`).
 
 **Estimate input tokens** by walking the deduplicated `files_modified` set, calling `wc -c` (or equivalent) on each path, and dividing by the per-extension byte ratio from the table in `references/scoring.md`. Sum the per-file estimates. The default ratio for unknown extensions is 3.0 — conservative high, biases toward triggering the advisory rather than missing it.
 
