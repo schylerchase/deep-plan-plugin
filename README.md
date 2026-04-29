@@ -255,8 +255,9 @@ Run it when deep-plan feels broken, before running `/deep-plan` for the first ti
 5. **Asks 0-2 scoping questions** informed by GSD's locked decisions — only asks about things that materially affect scope or architecture
 6. **Structures implementation units** with file paths, test scenarios, patterns to follow, and verification criteria
 7. **Writes GSD-compatible PLAN.md** with must-haves (behavioral truths, artifact checks, traceability links)
-8. **Validates plan structure** with the `plan-validator` agent — catches frontmatter errors, broken @-references, and invalid task XML before execution
-9. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
+8. **Computes routing decision** — analyzes phase metadata (file count, signal density, risk markers) across three perspectives (volume / structure / risk), combines via `sqrt(structure² + risk² + 0.3 × volume²)`, and emits a `<!-- DEEP_PLAN_ROUTING -->` trailer in the plan with the score breakdown and recommended model (haiku / sonnet / opus). Advisory in v1.1 phase 8; per-project config and bias overrides ship in phases 9-10. See [`references/scoring.md`](skills/deep-plan/references/scoring.md) for the full contract (formulas, byte ratios, thresholds, signal extraction).
+9. **Validates plan structure** with the `plan-validator` agent — catches frontmatter errors, broken @-references, and invalid task XML before execution
+10. **Optionally runs `feasibility-reviewer`** with `--review` flag — catches build/deploy issues before execution starts
 
 ### Progress Reporting
 
@@ -323,6 +324,14 @@ Unit 1: Extract validation constants
 
 **Threat model** — STRIDE analysis when the phase touches auth, user input, or external APIs (omitted otherwise).
 
+**Routing-decision trailer** — every PLAN.md ends with a deterministic comment that exposes the three perspective scores so you can see *why* a model was recommended, not just *what*:
+
+```html
+<!-- DEEP_PLAN_ROUTING: model=sonnet combined=6.8 volume=5.8 structure=6.0 risk=0.0 bias=balanced threshold=12 advisory=false -->
+```
+
+`advisory=true` flags phases that exceed the 180k input-token budget at high complexity (recommend phase split). The full contract — byte ratios per file extension, threshold tables for the three bias profiles (quality / balanced / budget), and signal extraction heuristics — lives in [`skills/deep-plan/references/scoring.md`](skills/deep-plan/references/scoring.md) so the math is reviewable without reading SKILL.md.
+
 ## Why Both GSD and CE?
 
 GSD is great at strategy (what to build, in what order) and CE is great at implementation (how to build it safely). deep-plan connects them:
@@ -359,7 +368,7 @@ claude plugin marketplace add JuliusBrussee/caveman
 claude plugin install caveman@caveman
 ```
 
-See [`skills/deep-plan/references/caveman-rule.md`](skills/deep-plan/references/caveman-rule.md) for the full v1 rule specification describing how deep-plan respects caveman's modes. Caveman is MIT-licensed. deep-plan does not bundle, modify, or redistribute caveman — install it separately via the commands above.
+See [`skills/deep-plan/references/caveman-rule.md`](skills/deep-plan/references/caveman-rule.md) for the full rule specification. **v1** covers compression-mode pass-through. **v2** lists four signals that always render full prose regardless of compression — HIGH-feasibility findings, AskUserQuestion blocks, mid-flight pivots, and routing-decision banners — so critical decisions never get squashed. Caveman is MIT-licensed. deep-plan does not bundle, modify, or redistribute caveman — install it separately via the commands above.
 
 ## License
 
