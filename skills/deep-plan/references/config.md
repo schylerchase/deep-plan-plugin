@@ -16,6 +16,8 @@ Per D-12 the resolved-config object exposed to all downstream steps has six user
 
 Type: `1` (literal integer). Per D-11 this field is required from day one. Absent → treat as 1 (forward-compat fallback). Forward-compat note: v1.2+ may add fields and bump the version; migration logic is flagged for the v1.2 backlog.
 
+Validation: integer `>= 1`. Invalid values fall back to `1` with a banner notice. Versions above 1 are accepted at skill-time for forward compatibility; `/deep-plan-doctor` warns when it sees a newer schema.
+
 ### mode
 
 Type: `"auto" | "confirm" | "silent"`. Default `"confirm"` per D-04 mode×pin orthogonality discussion. Per Phase 8 D-02: auto = banner only, confirm = AskuserQuestion, silent = no advisory output. The `--text` flag overlays mode with numbered-list fallback per Phase 2.
@@ -74,6 +76,12 @@ Then in prose:
 - `signals` overrides the per-signal heuristic weights from Phase 8 D-16. More common — "novel patterns matter more in my codebase" or "I want files_modified to count for less".
 - **Defaults:** See `references/scoring.md` ## Quadratic Combine for `formula.volume_coefficient` (default 0.3); see ## Signal Extraction for per-signal weights — sourced from that file, not duplicated here.
 
+Validation ranges:
+
+- `weight_overrides.formula.volume_coefficient`: number from 0 through 10.
+- `weight_overrides.signals.*`: number from 0 through 100.
+- Values outside those ranges fall back per-field with a banner notice. This prevents a typo such as `-1e9` from inverting the routing score.
+
 ## context_thresholds Shape (D-07)
 
 Per D-07 `context_thresholds` is one block with three semantically related keys. Each is a "threshold" in the routing decision pipeline. Keeping them in one block makes the config readable as a single "thresholds" concern.
@@ -94,6 +102,13 @@ Per-key prose:
 - **Defaults:** See `references/scoring.md` ## Threshold Map for `bias_thresholds`. Phase 9 reads the table on-demand; default values `{opus: {quality: 8, balanced: 12, budget: 20}, sonnet: {quality: 3, balanced: 4, budget: 6}}` are sourced from that file, not duplicated here.
 - **Defaults:** See `references/scoring.md` ## Token Estimation for `token_budget_advisory` (default 180000) — phase-split advisory trigger per Phase 8 D-01, sourced from that file, not duplicated here.
 - **Defaults:** See `references/scoring.md` ## Banner Format for `borderline_hint_window` (default 0.10) — banner appends bias-bump hint when combined is within ±N% of a threshold per Phase 8 D-12, sourced from that file, not duplicated here.
+
+Validation ranges:
+
+- `bias_thresholds.{opus,sonnet}.{quality,balanced,budget}`: integer `>= 1`.
+- `token_budget_advisory`: integer `>= 1`.
+- `borderline_hint_window`: number from 0 through 1.
+- Values outside those ranges fall back per-field with a banner notice.
 
 ## JSON Schema
 
@@ -177,6 +192,12 @@ function deepMergeConfig(defaults, overrides) {
 
 Per D-09 validation at skill-time is **lenient**: each field that fails type validation falls back to the plugin default for that field, and the banner appends a one-line notice. The skill continues without halting.
 
+Top-level read failures are also lenient. If `.planning/config.json` is malformed JSON, or if `deep_plan.model_routing` exists but is not an object, the whole block falls back to defaults and the banner includes one read-level notice:
+
+```
+config: malformed JSON, using all defaults
+```
+
 Banner notice format (one line per malformed field):
 
 ```
@@ -218,9 +239,9 @@ Per D-12 the in-memory resolved-config object exposed to all downstream steps is
 
 **`_source` computation:**
 
-- `"defaults"` — `.planning/config.json` `deep_plan.model_routing` block was absent or top-level malformed.
-- `"config"` — block was present and every field validated cleanly.
-- `"merged"` — block was present but at least one field fall back to default (lenient validation kicked in on at least one field).
+- `"defaults"` — no schema leaves came from config. This includes an absent `deep_plan.model_routing` block and top-level malformed config; malformed top-level config still emits the read-level banner notice described above.
+- `"config"` — every schema leaf was provided by config and validated cleanly.
+- `"merged"` — some but not all schema leaves came from config, or any provided field was rejected and defaulted via lenient validation.
 
 ## Worked Examples
 

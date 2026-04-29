@@ -3,11 +3,13 @@
 # eval-config-resolution.sh — golden-fixture eval for the deep-plan config resolution
 # layer (Phase 9 CONFIG-01..03)
 #
-# Exercises 4 fixture cases against the resolveConfig helper:
+# Exercises fixture cases against the resolveConfig helper:
 #   (a) config absent       → all defaults, _source: "defaults"
 #   (b) partial override    → deep merge, _source: "merged"
 #   (c) malformed field     → lenient fallback + notice, _source: "merged"
 #   (d) full custom         → all overrides applied, _source: "config"
+#   (e) malformed JSON      → all defaults + read-level notice, _source: "defaults"
+#   (f) unsafe numeric      → range fallback + notices, _source: "merged"
 #
 # Each fixture is a JSON config block plus expected resolved fields, expected notices
 # count, and expected _source. The harness invokes resolveConfig (implemented inline as
@@ -77,18 +79,39 @@ resolve_config() {
     const ALLOWED_PINS = [null, 'opus', 'sonnet', 'haiku'];
     const ALLOWED_BIASES = ['quality', 'balanced', 'budget'];
 
-    function isNumber(x) { return typeof x === 'number' && !Number.isNaN(x); }
+    function isNumber(x) { return typeof x === 'number' && Number.isFinite(x); }
     function isInteger(x) { return Number.isInteger(x); }
+    function inRange(min, max) { return (x) => isNumber(x) && x >= min && x <= max; }
+    function intAtLeast(min) { return (x) => isInteger(x) && x >= min; }
 
-    // Parse raw JSON; on top-level failure, return empty object (per D-09).
+    // Parse raw JSON; on top-level failure, return defaults plus a read-level
+    // notice (per D-09 / T-09-07).
     let raw;
+    let readLevelMalformed = false;
     try {
       raw = JSON.parse(process.argv[1] || '{}');
     } catch (e) {
       raw = {};
+      readLevelMalformed = true;
     }
 
     const notices = [];
+    if (readLevelMalformed) {
+      notices.push({
+        path: 'deep_plan.model_routing',
+        expected: 'valid-json-object',
+        got: 'malformed-json'
+      });
+    } else if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      const got = raw === null ? 'null' : (Array.isArray(raw) ? 'array' : typeof raw);
+      notices.push({
+        path: 'deep_plan.model_routing',
+        expected: 'object',
+        got
+      });
+      raw = {};
+      readLevelMalformed = true;
+    }
     let leavesFromInput = 0;
     let totalLeaves = 0;
 
@@ -109,7 +132,7 @@ resolve_config() {
     }
 
     const r = {
-      schema_version: resolveLeaf('schema_version', raw.schema_version, DEFAULTS.schema_version, isInteger, 'integer'),
+      schema_version: resolveLeaf('schema_version', raw.schema_version, DEFAULTS.schema_version, intAtLeast(1), 'integer>=1'),
       mode: resolveLeaf('mode', raw.mode, DEFAULTS.mode, (x) => ALLOWED_MODES.includes(x), 'enum(auto|confirm|silent)'),
       pin: resolveLeaf('pin', raw.pin, DEFAULTS.pin, (x) => ALLOWED_PINS.includes(x), 'enum(null|opus|sonnet|haiku)'),
       bias: resolveLeaf('bias', raw.bias, DEFAULTS.bias, (x) => ALLOWED_BIASES.includes(x), 'enum(quality|balanced|budget)'),
@@ -126,8 +149,8 @@ resolve_config() {
             'weight_overrides.formula.volume_coefficient',
             raw.weight_overrides?.formula?.volume_coefficient,
             DEFAULTS.weight_overrides.formula.volume_coefficient,
-            isNumber,
-            'number'
+            inRange(0, 10),
+            'number[0,10]'
           )
         },
         signals: {}
@@ -138,15 +161,15 @@ resolve_config() {
           'context_thresholds.token_budget_advisory',
           raw.context_thresholds?.token_budget_advisory,
           DEFAULTS.context_thresholds.token_budget_advisory,
-          isInteger,
-          'integer'
+          intAtLeast(1),
+          'integer>=1'
         ),
         borderline_hint_window: resolveLeaf(
           'context_thresholds.borderline_hint_window',
           raw.context_thresholds?.borderline_hint_window,
           DEFAULTS.context_thresholds.borderline_hint_window,
-          isNumber,
-          'number'
+          inRange(0, 1),
+          'number[0,1]'
         )
       }
     };
@@ -157,8 +180,8 @@ resolve_config() {
         'weight_overrides.signals.' + k,
         raw.weight_overrides?.signals?.[k],
         DEFAULTS.weight_overrides.signals[k],
-        isNumber,
-        'number'
+        inRange(0, 100),
+        'number[0,100]'
       );
     }
 
@@ -169,8 +192,8 @@ resolve_config() {
           'context_thresholds.bias_thresholds.' + model + '.' + b,
           raw.context_thresholds?.bias_thresholds?.[model]?.[b],
           DEFAULTS.context_thresholds.bias_thresholds[model][b],
-          isInteger,
-          'integer'
+          intAtLeast(1),
+          'integer>=1'
         );
       }
     }
@@ -183,7 +206,7 @@ resolve_config() {
     // user provided some fields and defaults backfilled the rest (partial override
     // path) OR some fields were rejected (lenient fallback path).
     let source;
-    if (leavesFromInput === 0 && notices.length === 0) {
+    if (leavesFromInput === 0 && (notices.length === 0 || readLevelMalformed)) {
       source = 'defaults';
     } else if (leavesFromInput === totalLeaves && notices.length === 0) {
       source = 'config';
@@ -248,6 +271,21 @@ FIXTURE_D_EXPECTED_PIN='opus'
 FIXTURE_D_EXPECTED_OPUS_QUALITY='5'
 FIXTURE_D_EXPECTED_NOTICES_COUNT='0'
 
+# Fixture (e) — malformed top-level JSON → all defaults + read-level notice
+FIXTURE_E_INPUT='{"bias":'
+FIXTURE_E_EXPECTED_SOURCE='defaults'
+FIXTURE_E_EXPECTED_BIAS='balanced'
+FIXTURE_E_EXPECTED_NOTICES_COUNT='1'
+FIXTURE_E_EXPECTED_NOTICE_PATH='deep_plan.model_routing'
+
+# Fixture (f) — unsafe numeric ranges → per-field fallback + notices
+FIXTURE_F_INPUT='{"weight_overrides":{"formula":{"volume_coefficient":-0.1},"signals":{"novel":-5}},"context_thresholds":{"token_budget_advisory":-1,"borderline_hint_window":2}}'
+FIXTURE_F_EXPECTED_SOURCE='merged'
+FIXTURE_F_EXPECTED_VOLUME_COEFFICIENT='0.3'
+FIXTURE_F_EXPECTED_TOKEN_BUDGET='180000'
+FIXTURE_F_EXPECTED_BORDERLINE_WINDOW='0.1'
+FIXTURE_F_EXPECTED_NOTICES_COUNT='4'
+
 # ── Assertion helpers ──
 
 assert_field() {
@@ -279,6 +317,8 @@ RESULT_A_FIRST=""
 RESULT_B_FIRST=""
 RESULT_C_FIRST=""
 RESULT_D_FIRST=""
+RESULT_E_FIRST=""
+RESULT_F_FIRST=""
 
 # ── Fixture (a) ──
 total=$((total + 1))
@@ -359,11 +399,66 @@ else
   fail_count=$((fail_count + 1))
 fi
 
-# ── Determinism check: re-run all 4 fixtures and require byte-equal output ──
+# ── Fixture (e) ──
+total=$((total + 1))
+result_e=$(run_fixture "$FIXTURE_E_INPUT")
+RESULT_E_FIRST="$result_e"
+IFS='|' read -r src_e bias_e _mode_e _pin_e _sv_e _gsd_e _oq_e _ob_e _obu_e _sq_e _sb_e _sbu_e _vc_e _tb_e _bw_e nc_e np_e <<< "$result_e"
+
+fixture_failed=0
+assert_field "fixture-e-malformed-json" "_source" "$src_e" "$FIXTURE_E_EXPECTED_SOURCE" || fixture_failed=1
+assert_field "fixture-e-malformed-json" "bias" "$bias_e" "$FIXTURE_E_EXPECTED_BIAS" || fixture_failed=1
+assert_field "fixture-e-malformed-json" "notices_count" "$nc_e" "$FIXTURE_E_EXPECTED_NOTICES_COUNT" || fixture_failed=1
+assert_field "fixture-e-malformed-json" "notice_path" "$np_e" "$FIXTURE_E_EXPECTED_NOTICE_PATH" || fixture_failed=1
+
+if [ "$fixture_failed" -eq 0 ]; then
+  echo "[PASS] fixture-e-malformed-json _source=$src_e bias=$bias_e notices=$nc_e path=$np_e"
+  pass_count=$((pass_count + 1))
+else
+  fail_count=$((fail_count + 1))
+fi
+
+# ── Fixture (f) ──
+total=$((total + 1))
+result_f=$(run_fixture "$FIXTURE_F_INPUT")
+RESULT_F_FIRST="$result_f"
+IFS='|' read -r src_f _bias_f _mode_f _pin_f _sv_f _gsd_f _oq_f _ob_f _obu_f _sq_f _sb_f _sbu_f vc_f tb_f bw_f nc_f np_f <<< "$result_f"
+
+fixture_failed=0
+assert_field "fixture-f-unsafe-numeric" "_source" "$src_f" "$FIXTURE_F_EXPECTED_SOURCE" || fixture_failed=1
+assert_field "fixture-f-unsafe-numeric" "volume_coefficient" "$vc_f" "$FIXTURE_F_EXPECTED_VOLUME_COEFFICIENT" || fixture_failed=1
+assert_field "fixture-f-unsafe-numeric" "token_budget_advisory" "$tb_f" "$FIXTURE_F_EXPECTED_TOKEN_BUDGET" || fixture_failed=1
+assert_field "fixture-f-unsafe-numeric" "borderline_hint_window" "$bw_f" "$FIXTURE_F_EXPECTED_BORDERLINE_WINDOW" || fixture_failed=1
+assert_field "fixture-f-unsafe-numeric" "notices_count" "$nc_f" "$FIXTURE_F_EXPECTED_NOTICES_COUNT" || fixture_failed=1
+
+for expected_path in \
+  "weight_overrides.formula.volume_coefficient" \
+  "context_thresholds.token_budget_advisory" \
+  "context_thresholds.borderline_hint_window" \
+  "weight_overrides.signals.novel"; do
+  case "$np_f" in
+    *"$expected_path"*) ;;
+    *)
+      echo "[FAIL] fixture-f-unsafe-numeric: notice_paths missing '$expected_path' in '$np_f'"
+      fixture_failed=1
+      ;;
+  esac
+done
+
+if [ "$fixture_failed" -eq 0 ]; then
+  echo "[PASS] fixture-f-unsafe-numeric _source=$src_f notices=$nc_f paths=$np_f"
+  pass_count=$((pass_count + 1))
+else
+  fail_count=$((fail_count + 1))
+fi
+
+# ── Determinism check: re-run all fixtures and require byte-equal output ──
 result_a_second=$(run_fixture "$FIXTURE_A_INPUT")
 result_b_second=$(run_fixture "$FIXTURE_B_INPUT")
 result_c_second=$(run_fixture "$FIXTURE_C_INPUT")
 result_d_second=$(run_fixture "$FIXTURE_D_INPUT")
+result_e_second=$(run_fixture "$FIXTURE_E_INPUT")
+result_f_second=$(run_fixture "$FIXTURE_F_INPUT")
 
 determinism_failed=0
 if [ "$RESULT_A_FIRST" != "$result_a_second" ]; then
@@ -382,9 +477,17 @@ if [ "$RESULT_D_FIRST" != "$result_d_second" ]; then
   echo "[FAIL] fixture-d-full: determinism failure — first '$RESULT_D_FIRST' second '$result_d_second'"
   determinism_failed=1
 fi
+if [ "$RESULT_E_FIRST" != "$result_e_second" ]; then
+  echo "[FAIL] fixture-e-malformed-json: determinism failure — first '$RESULT_E_FIRST' second '$result_e_second'"
+  determinism_failed=1
+fi
+if [ "$RESULT_F_FIRST" != "$result_f_second" ]; then
+  echo "[FAIL] fixture-f-unsafe-numeric: determinism failure — first '$RESULT_F_FIRST' second '$result_f_second'"
+  determinism_failed=1
+fi
 
 if [ "$determinism_failed" -eq 0 ]; then
-  echo "[PASS] determinism-check     all 4 fixtures byte-equal across 2 runs"
+  echo "[PASS] determinism-check     all $total fixtures byte-equal across 2 runs"
 fi
 
 # ── Summary block ──

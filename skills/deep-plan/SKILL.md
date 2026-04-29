@@ -81,22 +81,40 @@ If `CAVEMAN_INSTALLED=yes`, read `references/caveman-rule.md` and build an overr
 
 ### Config resolution
 
-Resolve `deep_plan.model_routing` config — once per run, fall back to defaults silently when absent:
+Resolve `deep_plan.model_routing` config — once per run, fall back to defaults silently when absent and with a banner notice when malformed:
 
 ```bash
-CONFIG_BLOCK=$(node -e "
+CONFIG_READ=$(node -e "
+const fs = require('fs');
+const path = process.cwd() + '/.planning/config.json';
+const typeOf = (x) => x === null ? 'null' : (Array.isArray(x) ? 'array' : typeof x);
 try {
-  const c = require('$(pwd)/.planning/config.json');
-  process.stdout.write(JSON.stringify(c?.deep_plan?.model_routing ?? {}));
+  if (!fs.existsSync(path)) {
+    console.log('{}');
+    console.log('');
+    process.exit(0);
+  }
+  const c = JSON.parse(fs.readFileSync(path, 'utf8'));
+  const block = c?.deep_plan?.model_routing ?? {};
+  if (block && typeof block === 'object' && !Array.isArray(block)) {
+    console.log(JSON.stringify(block));
+    console.log('');
+  } else {
+    console.log('{}');
+    console.log('config: used defaults for deep_plan.model_routing (malformed: expected object, got ' + typeOf(block) + ')');
+  }
 } catch (e) {
-  process.stdout.write('{}');
+  console.log('{}');
+  console.log('config: malformed JSON, using all defaults');
 }
 " 2>/dev/null)
+CONFIG_BLOCK=$(printf '%s\n' "$CONFIG_READ" | sed -n '1p')
+CONFIG_READ_NOTICE=$(printf '%s\n' "$CONFIG_READ" | sed -n '2p')
 ```
 
 **Read `references/config.md`** for: the JSON schema, default values sourced from `references/scoring.md`, the deep-merge rules per D-08, lenient field-level fallback narrative per D-09, and the resolved-config object shape per D-12.
 
-Apply the resolution algorithm from `references/config.md`: deep-merge `CONFIG_BLOCK` into the defaults sourced from `references/scoring.md`; for each malformed field, fall back to the default and append a one-line banner notice (cap at 3 lines, summarize remainder as `+N more, see /deep-plan-doctor`). Compute `_source` per the rule in `references/config.md` ## Resolved-Config Object Shape: `"defaults"` when no fields came from config, `"config"` when every schema leaf was provided and validated cleanly, `"merged"` when the user provided some fields and defaults backfilled the rest (or any field was rejected via lenient fallback).
+Apply the resolution algorithm from `references/config.md`: deep-merge `CONFIG_BLOCK` into the defaults sourced from `references/scoring.md`; include `CONFIG_READ_NOTICE` first when present; for each malformed field or out-of-range numeric override, fall back to the default and append a one-line banner notice (cap at 3 lines, summarize remainder as `+N more, see /deep-plan-doctor`). Compute `_source` per the rule in `references/config.md` ## Resolved-Config Object Shape: `"defaults"` when no schema leaves came from config, `"config"` when every schema leaf was provided and validated cleanly, `"merged"` when the user provided some fields and defaults backfilled the rest (or any field was rejected via lenient fallback).
 
 Hold the resolved-config object in skill scope as `resolved_config`. Downstream steps consume it:
 - Step 9.5 reads `resolved_config.bias` for the threshold map.
