@@ -1,0 +1,43 @@
+{
+  "name": "deep-plan",
+  "version": "0.3.0",
+  "description": "Bridges GSD strategic context with CE-quality implementation planning for Codex. Produces code-grounded plans with implementation units, test scenarios, feasibility review, and UX-first frontend evaluation.",
+  "author": {
+    "name": "schylerchase"
+  },
+  "homepage": "https://github.com/schylerchase/deep-plan-plugin",
+  "repository": "https://github.com/schylerchase/deep-plan-plugin",
+  "license": "MIT",
+  "keywords": [
+    "gsd",
+    "planning",
+    "ce",
+    "implementation",
+    "compound-engineering",
+    "feasibility",
+    "ux",
+    "frontend",
+    "accessibility",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Deep Plan",
+    "shortDescription": "Code-grounded implementation planning for GSD phases.",
+    "longDescription": "Deep Plan bridges GSD phase context with Compound Engineering style code research, implementation units, test scenarios, feasibility review, and UX-first frontend evaluation.",
+    "developerName": "schylerchase",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/schylerchase/deep-plan-plugin",
+    "defaultPrompt": [
+      "Deep plan the next GSD phase.",
+      "Deep plan phase 18 with feasibility review.",
+      "Review frontend UX before planning."
+    ],
+    "screenshots": []
+  }
+}

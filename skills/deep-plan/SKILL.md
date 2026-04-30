@@ -163,7 +163,7 @@ Run three checks via Bash (run all three, collect failures, report together):
 2. CE installed: `claude plugin list 2>&1 | grep -q compound-engineering`
 3. `.planning/` exists: `test -d .planning/`
 
-If any failed, print every failure with its fix command, then stop.
+If any failed, print every failure with its fix command.
 
 Error format (only print lines for missing prerequisites):
 ```
@@ -171,6 +171,29 @@ deep-plan requires GSD. Install: see GSD Discord #getting-started
 deep-plan requires Compound Engineering. Install: claude plugin marketplace add EveryInc/compound-engineering-plugin && claude plugin install compound-engineering
 No .planning/ directory found. Run /gsd-new-project to initialize.
 ```
+
+### First-run recovery prompt
+
+If GSD is missing, do **not** hard-stop immediately. GSD is commonly installed in another shell while the Claude Code session remains open.
+
+Ask:
+
+```
+GSD is required before deep-plan can read phase context.
+
+1. I installed GSD — retry checks
+2. Show install steps and stop
+3. Run /deep-plan-doctor --install after I fix it
+```
+
+When AskUserQuestion is available, use equivalent options:
+- "I installed GSD — retry checks" — re-run all three prerequisite checks
+- "Show install steps and stop" — print the GSD Discord install note and stop
+- "Run doctor after install" — print `Run: /deep-plan-doctor --install` and stop
+
+If the user chooses retry, re-run all three checks. If they now pass, continue silently. If GSD is still missing, show the same recovery prompt again, up to 3 retry attempts, then stop with the install note.
+
+If CE or `.planning/` is missing but GSD is present, stop after printing the missing prerequisite lines; those fixes have their own explicit commands/workflows and should not be retried inside `/deep-plan`.
 
 If all pass, continue silently.
 

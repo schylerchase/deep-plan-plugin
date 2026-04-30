@@ -9,6 +9,9 @@
 # Claude Code session state — per-machine, not shareable
 .claude/
 
+# Codex session state — per-machine, not shareable
+.codex/
+
 # OS junk
 .DS_Store
 Thumbs.db

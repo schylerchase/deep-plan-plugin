@@ -1,8 +1,35 @@
-# deep-plan — Claude Code Plugin
+# deep-plan — Claude Code + Codex Plugin
 
 Bridges [GSD](https://discord.gg/gsd-plugin) strategic planning with [Compound Engineering](https://github.com/EveryInc/compound-engineering-plugin) implementation planning. Catches build-breaking issues before execution starts.
 
 ## Quick Install
+
+### Full Bootstrap (Claude Code + Codex)
+
+For a fresh machine, use the deploy bootstrap. It configures the public Claude Code and Codex plugin paths for Deep Plan, Compound Engineering, and Caveman, bridges an existing GSD install into Codex, initializes RTK when available, and prints manual steps for anything that is private or credential-gated.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/deploy.sh | bash -s -- --yes
+```
+
+From a cloned checkout:
+
+```bash
+./deploy.sh --yes
+```
+
+Useful variants:
+
+```bash
+./deploy.sh --claude-only
+./deploy.sh --codex-only
+./deploy.sh --dry-run
+./deploy.sh --upgrade --yes
+```
+
+GSD is still distributed through its own community channel. The deploy script verifies it and links `~/.claude/get-shit-done` into `~/.codex/get-shit-done` when present, but it does not fetch private/community-gated assets.
+
+### Claude Code Only
 
 If you already have GSD and Compound Engineering installed:
 
@@ -21,6 +48,23 @@ irm https://raw.githubusercontent.com/schylerchase/deep-plan-plugin/main/setup.p
 claude plugin marketplace add https://github.com/schylerchase/deep-plan-plugin.git
 claude plugin install deep-plan@deep-plan-plugin
 ```
+
+### Codex Only
+
+The deploy script is the easiest Codex path because Codex currently registers marketplaces separately from enabled plugin blocks:
+
+```bash
+./deploy.sh --codex-only --yes
+```
+
+Manual Codex install:
+
+```bash
+codex plugin marketplace add https://github.com/schylerchase/deep-plan-plugin
+printf '\n[plugins."deep-plan@deep-plan-plugin"]\nenabled = true\n' >> ~/.codex/config.toml
+```
+
+Restart Codex after changing plugin configuration.
 
 ### Troubleshooting
 
@@ -177,6 +221,7 @@ if (Select-String -Quiet "compound-engineering" "$env:USERPROFILE\.claude\plugin
 - `/ux-review` — command that runs the reviewer and offers to fix findings
 - `/deep-plan-configure` — project-local setup wizard for adaptive model routing (`mode`, `pin`, `bias`, profile capture, advanced overrides)
 - `/deep-plan-doctor` — diagnostic command that verifies install health and project readiness, with auto-fix for fixable issues
+- `/deep-plan-update` — Claude Code plugin update helper for checking and installing newer deep-plan releases
 
 ### Step 4: Install deep-plan
 
@@ -245,9 +290,42 @@ Scans frontend code for UX issues across six dimensions — state design, access
 /deep-plan-doctor --project    # Project-only checks
 ```
 
-Runs install checks (Claude Code version, GSD installed, CE installed, deep-plan agents/skills discoverable) and project checks (ROADMAP.md parses, phase detection, CONTEXT.md/RESEARCH.md freshness, warm-start intel status). Prints a structured remediation report with critical-vs-warning classification and offers to auto-fix fixable issues (marketplace add, plugin install) only after explicit approval.
+Runs install checks (Claude Code version, GSD installed, CE installed, deep-plan agents/skills discoverable, plugin update availability) and project checks (ROADMAP.md parses, phase detection, CONTEXT.md/RESEARCH.md freshness, warm-start intel status). Prints a structured remediation report with critical-vs-warning classification and offers to auto-fix fixable issues (marketplace add, plugin install) only after explicit approval.
 
 Run it when deep-plan feels broken, before running `/deep-plan` for the first time in a new project, or after updating any plugin.
+
+If `/deep-plan` starts before GSD is installed, it pauses at the prerequisite gate and lets you retry after installing GSD in another shell. Once the retry passes, the same `/deep-plan` run continues.
+
+### Plugin Updates
+
+```bash
+/deep-plan-update          # Check and ask before updating
+/deep-plan-update --check  # Check only
+/deep-plan-update --yes    # Update without prompting
+```
+
+The command refreshes the `deep-plan-plugin` marketplace, compares the installed `deep-plan@deep-plan-plugin` version with the marketplace version, and runs Claude Code's plugin update command when approved:
+
+```bash
+claude plugin marketplace update deep-plan-plugin
+claude plugin update deep-plan@deep-plan-plugin
+```
+
+Restart Claude Code after updating so the new plugin files are loaded.
+
+### Codex Plugin Updates
+
+Codex does not currently have the same in-app update badge path as Claude Code. Use the Codex marketplace upgrade command:
+
+```bash
+codex plugin marketplace upgrade deep-plan-plugin
+```
+
+Or rerun the full bootstrap with:
+
+```bash
+./deploy.sh --codex-only --upgrade --yes
+```
 
 ## How It Works
 

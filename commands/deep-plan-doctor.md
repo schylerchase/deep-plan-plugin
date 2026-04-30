@@ -39,55 +39,65 @@ Tier 1 checks work from any working directory (no GSD project required).
 For each check, print a result line formatted as:
 
 ```
-── deep-plan-doctor [N/8] <check name> ──────────────
+── deep-plan-doctor [N/9] <check name> ──────────────
 [OK|WARN|FAIL|INFO] <one-line result>
 <remediation if not OK>
 ```
 
-Required checks (1–6) fail the tier on `[FAIL]`. Optional checks (7–8) surface as `[INFO]` when missing — they never fail the tier.
+Required checks (1–6) fail the tier on `[FAIL]`. Optional checks (7–8) surface as `[INFO]` when missing — they never fail the tier. Maintenance check 9 surfaces update availability as `[WARN]` or `[INFO]` and never fails the tier.
 
-**Check 1/8: Claude Code version**
+**Check 1/9: Claude Code version**
 - Run `claude --version` via Bash.
 - Parse major version. Pass if `major >= 2`.
 - On FAIL: `Install or upgrade Claude Code: npm install -g @anthropic-ai/claude-code (macOS/Linux) or winget install Anthropic.ClaudeCode (Windows).`
 
-**Check 2/8: GSD installed**
+**Check 2/9: GSD installed**
 - Test for file `$HOME/.claude/get-shit-done/bin/gsd-tools.cjs` via Bash (`test -f`).
 - On FAIL: `GSD is distributed via the GSD Discord community. Join the Discord and follow the install steps in #getting-started. (Not auto-fixable — Discord-gated by design.)`
 
-**Check 3/8: Compound Engineering (CE) installed**
+**Check 3/9: Compound Engineering (CE) installed**
 - Run `claude plugin list` via Bash.
 - Search output for `compound-engineering@compound-engineering-plugin` or any line matching `compound-engineering`.
 - On FAIL: `claude plugin marketplace add EveryInc/compound-engineering-plugin && claude plugin install compound-engineering`
 
-**Check 4/8: CE agents discoverable**
+**Check 4/9: CE agents discoverable**
 - Check if `repo-research-analyst` and `feasibility-reviewer` agents exist (these are CE's core agents that deep-plan spawns).
 - If the context doesn't allow agent introspection, mark as `[WARN] Could not introspect agents — test by running /deep-plan --review on a phase to verify CE agent availability.`
 - On FAIL: `CE is installed but agents aren't discoverable. Try: claude plugin update compound-engineering, or restart Claude Code.`
 
-**Check 5/8: deep-plan agents discoverable**
+**Check 5/9: deep-plan agents discoverable**
 - Check if `plan-validator` and `ux-reviewer` agents exist (bundled with deep-plan in agents/).
 - On FAIL: `deep-plan is running but its agents aren't discoverable. Try: claude plugin update deep-plan, or restart Claude Code.`
 
-**Check 6/8: deep-plan skills loaded**
+**Check 6/9: deep-plan skills loaded**
 - Verify the `deep-plan` skill and `frontend-design` skill appear loaded (these are the plugin's two skills). If skill listing is not directly introspectable, note this check as `[WARN]` with the same "restart Claude Code" remediation as above.
 
-**Check 7/8: Caveman (optional)**
+**Check 7/9: Caveman (optional)**
 - Run `claude plugin list 2>/dev/null | grep -q "caveman@caveman"` via Bash.
 - On found: `[OK] Caveman installed — chat compression active per user mode`
 - On not-found: `[INFO] Caveman not installed (optional). Compresses chat output 60-90% without losing technical substance. Install: claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman`
 - This check NEVER fails the tier. Caveman is optional.
 
-**Check 8/8: RTK (optional)**
+**Check 8/9: RTK (optional)**
 - Run `which rtk` and `rtk --version` via Bash.
 - On found: `[OK] RTK {version} — token-optimized CLI proxy active`
 - On not-found: `[INFO] RTK not installed (optional). Reduces 60-90% of dev-operation token cost via shell hook rewrites. Install: cargo install rtk (then configure ~/.claude/hooks/rtk-rewrite.sh — see RTK README)`
 - This check NEVER fails the tier. RTK is optional.
 
+**Check 9/9: deep-plan update availability (Claude Code)**
+- Run `claude plugin marketplace update deep-plan-plugin` via Bash. If it fails, continue using cached metadata and report `[INFO] Could not refresh marketplace metadata — run /deep-plan-update --check later.`
+- Read installed version from `claude plugin list` by finding the `deep-plan@deep-plan-plugin` block and its `Version:` line.
+- Read latest version from `$CLAUDE_CONFIG_DIR/plugins/marketplaces/deep-plan-plugin/.claude-plugin/marketplace.json`, falling back to `$HOME/.claude/plugins/marketplaces/deep-plan-plugin/.claude-plugin/marketplace.json`. Parse `plugins[]` entry where `name == "deep-plan"` and read `version`.
+- If installed and latest are known and latest is newer: `[WARN] deep-plan update available: installed {installed}, latest {latest}. Run /deep-plan-update.`
+- If installed equals latest: `[OK] deep-plan is up to date ({installed}).`
+- If installed is newer than latest: `[INFO] deep-plan appears ahead of marketplace ({installed} > {latest}); likely dev install.`
+- If either version cannot be determined: `[INFO] deep-plan update status unknown — run /deep-plan-update --check.`
+- This check never fails the tier.
+
 After Tier 1, print a summary line:
 
 ```
-── Tier 1 complete: {required_pass}/6 required passing | {optional_present}/2 optional tools ──────────────
+── Tier 1 complete: {required_pass}/6 required passing | {optional_present}/2 optional tools | update: {current|available|unknown} ──────────────
 ```
 
 If **Check 1, 2, or 3 failed** (these are install-blocking), ask:
@@ -194,6 +204,7 @@ If any fixable issues exist, ask:
 - `claude plugin marketplace add <owner/repo>`
 - `claude plugin install <name>`
 - `claude plugin update <name>`
+- `/deep-plan-update` for deep-plan updates
 
 **Manual-only issues** (always print the steps, never auto-run):
 - GSD install (Discord-gated)
@@ -207,12 +218,13 @@ If all checks pass, end with:
 ── All checks passed. deep-plan is ready to run. ───
 Next: /deep-plan {N}              (auto-detect phase)
       /deep-plan {N} --review     (plan + feasibility review)
+      /deep-plan-update --check   (check for plugin updates)
 ```
 
 ## Output Discipline
 
 - Always print the banner first — users need to see which tool is running.
-- Always print the step counter `[N/6]` (Tier 1) or `[N/6]` (Tier 2) so progress is visible even when output scrolls.
+- Always print the step counter `[N/9]` (Tier 1) or `[N/6]` (Tier 2) so progress is visible even when output scrolls.
 - Be terse in `[OK]` lines, verbose in `[FAIL]` lines — users who need the fix want the fix inline, not buried.
 - Use the structured text format above as the product; avoid emoji, color escapes, or noise.
 
