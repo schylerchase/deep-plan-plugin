@@ -272,6 +272,47 @@ config: used default for weight_overrides.formula.volume_coefficient (malformed:
 - **schema_version > 1:** Phase 9 still resolves — unknown fields silently ignored, known fields validated per the rules above. Doctor (Phase 12) flags as `[WARN]` for upgrade reminder.
 - **Migration logic:** flagged for the v1.2 backlog. Phase 11 is the most likely v1.2 schema-change candidate (`default_executor_model` field hypothesized).
 
+## Telemetry - Handoff
+
+Phase 13 adds `_telemetry.handoff` to `.planning/config.json` for cross-model bundle exports and imports. This is telemetry only; it is not part of `deep_plan.model_routing` and is not loaded into the resolved-config object.
+
+Each entry has this shape:
+
+```json
+{
+  "phase_id": "13-bundle-schema-export",
+  "direction": "export",
+  "target": "codex",
+  "ts": "2026-04-30T12:34:56Z",
+  "bundle_path": ".planning/handoff/13-bundle-schema-export.handoff.md"
+}
+```
+
+Import entries use `source` instead of `target`:
+
+```json
+{
+  "phase_id": "13-bundle-schema-export",
+  "direction": "import",
+  "source": "claude",
+  "ts": "2026-04-30T13:15:22Z",
+  "bundle_path": ".planning/handoff/13-bundle-schema-export.handoff.md"
+}
+```
+
+Field contract:
+
+| Field | Required | Type | Notes |
+|-------|----------|------|-------|
+| `phase_id` | yes | string | Phase directory slug, such as `13-bundle-schema-export`. |
+| `direction` | yes | enum | One of `export` or `import`. |
+| `target` | export only | string | Target model/tool hint for exported bundles. |
+| `source` | import only | string | Source model/tool hint for imported bundles. |
+| `ts` | yes | ISO-8601 UTC string | Event timestamp. |
+| `bundle_path` | yes | string | Repo-relative path to the bundle. |
+
+Append-only semantics mirror `_telemetry.decisions`: preserve existing entries, append the newest event, and keep unrelated `_telemetry` keys unchanged. There is no hard cap in v1.2; cleanup is user-driven.
+
 ## See Also
 
 - Defaults source: `skills/deep-plan/references/scoring.md` (single source of truth for threshold tables, signal weights, byte ratios, advisory token budget, borderline-hint window)

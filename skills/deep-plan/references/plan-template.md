@@ -36,6 +36,34 @@ Write to: `.planning/phases/{padded_phase}-{slug}/{padded_phase}-{MM}-PLAN.md`
 | `{phase_dir}` | `.planning/phases/{padded_phase}-{slug}` |
 | `{routing_decision.*}` | Step 9.5 routing decision object; Step 9 writes placeholders and Step 9.5 replaces them before Step 10 validation |
 
+## Optional `routing.handoff_chain`
+
+Phase 13 adds an optional `routing.handoff_chain` frontmatter field for cross-model planning handoff. Its absence means the plan has not moved between models or tools.
+
+```yaml
+routing:
+  handoff_chain:
+    - model: "claude-opus-4-7"
+      plugin: "deep-plan@1.2.0"
+      action: "planned"
+      ts: "2026-04-30T12:34:56Z"
+    - model: "codex-cli"
+      plugin: "codex"
+      action: "imported"
+      ts: "2026-04-30T13:15:22Z"
+```
+
+Entry schema:
+
+| Field | Required | Type | Notes |
+|-------|----------|------|-------|
+| `model` | yes | string | Model or executor identifier that performed the action. |
+| `plugin` | yes | string | Plugin/tool name and version when available, such as `deep-plan@1.2.0`. |
+| `action` | yes | enum | One of `planned`, `imported`, `reviewed`, `executed`. |
+| `ts` | yes | ISO-8601 UTC string | Timestamp for the handoff event. |
+
+Keep only the last 5 entries. When adding a sixth entry, drop the oldest entry from the front before writing the updated frontmatter. Invalid `action` values or malformed `ts` values are importer/doctor warnings in v1.2; they do not change execution semantics by themselves.
+
 ## Full template body
 
 ```yaml
