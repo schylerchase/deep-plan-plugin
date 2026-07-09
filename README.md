@@ -267,6 +267,35 @@ On first run in a project, `/deep-plan` opens the model-routing setup wizard if 
 
 The wizard writes only `.planning/config.json` and preserves unrelated GSD project settings. It captures `mode`, `pin`, `bias`, the setup-time GSD profile, and optional advanced thresholds/weights.
 
+### Cross-Model Plan Import
+
+Use `/deep-plan:import-plan` on the receiving model to land a portable bundle produced by `/deep-plan:export-plan`.
+
+```bash
+/deep-plan:import-plan path/to/phase.handoff.md
+/deep-plan:import-plan path/to/phase.handoff.md --dry-run
+/deep-plan:import-plan path/to/phase.handoff.md --force
+/deep-plan:import-plan path/to/phase.handoff.md --no-review
+/deep-plan:import-plan path/to/phase.handoff.md --review
+```
+
+Arguments:
+
+- `path` - bundle file to validate and import.
+- `--dry-run` - run schema validation, target resolution, collision checks, and foreign-repo warnings without writing files or spawning a reviewer.
+- `--force` - overwrite resolved targets when collisions exist. Without it, import refuses collisions because `.planning/` is often gitignored.
+- `--no-review` - skip the default feasibility review after landing.
+- `--review` - run the feasibility review on opus explicitly.
+
+Receiving workflow:
+
+1. Move or reference the `.handoff.md` bundle in the receiving repository.
+2. Run `/deep-plan:import-plan <bundle> --dry-run` and inspect validation, collision, and foreign-repo warnings.
+3. Run `/deep-plan:import-plan <bundle>` to land PLAN and CONTEXT byte-for-byte, append provenance, and run the default review.
+4. Use `/gsd-execute-phase` after reviewing any import report.
+
+The command supports text-mode and agent-native operation: flags are plain text, prompts have numbered-list fallbacks, and the imported plan content remains model-neutral.
+
 ### UX Review
 
 ```bash
