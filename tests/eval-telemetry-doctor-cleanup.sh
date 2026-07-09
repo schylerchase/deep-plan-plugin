@@ -58,12 +58,12 @@ assert_contains "$SKILL" '"override_flag"' 'telemetry includes override_flag'
 assert_contains "$SKILL" '"input_tokens_estimate"' 'telemetry includes context estimate'
 assert_contains "$SKILL" 'telemetry was skipped' 'SKILL warns when telemetry append is skipped'
 
-assert_contains "$DOCTOR" 'Check 6/6: model_routing config and GSD profile drift' 'doctor adds Tier 2 check 6/6'
+assert_contains "$DOCTOR" 'Check 6/7: model_routing config and GSD profile drift' 'doctor adds Tier 2 check 6/7'
 assert_contains "$DOCTOR" 'model_routing config missing' 'doctor warns on missing model_routing'
 assert_contains "$DOCTOR" 'gsd_profile_at_setup' 'doctor checks setup-time GSD profile'
 assert_contains "$DOCTOR" 'GSD profile drift' 'doctor warns on profile drift'
 assert_contains "$DOCTOR" '/deep-plan-configure' 'doctor points remediation at configure command'
-assert_contains "$DOCTOR" '\[N/6\].*Tier 2' 'doctor output discipline uses six Tier 2 checks'
+assert_contains "$DOCTOR" '\[N/7\].*Tier 2' 'doctor output discipline uses seven Tier 2 checks'
 
 assert_contains "$VALIDATOR" '^model: claude-sonnet-4-6$' 'plan-validator model pinned to sonnet'
 
