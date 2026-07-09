@@ -31,7 +31,7 @@ Print:
 Then print:
 
 ```text
--- deep-plan-import-plan [1/7] Prerequisites --
+-- deep-plan-import-plan [1/8] Prerequisites --
 ```
 
 Verify before reading the bundle:
@@ -52,7 +52,7 @@ Do not write any file before this prerequisite gate passes.
 Print:
 
 ```text
--- deep-plan-import-plan [2/7] Argument parsing --
+-- deep-plan-import-plan [2/8] Argument parsing --
 ```
 
 Parse `$ARGUMENTS`:
@@ -70,7 +70,7 @@ Reject: unknown flags (`Unknown argument: {flag}`), missing path (print usage), 
 Print:
 
 ```text
--- deep-plan-import-plan [3/7] Reading bundle --
+-- deep-plan-import-plan [3/8] Reading bundle --
 ```
 
 Read the bundle file verbatim. Split YAML frontmatter only on leading delimiter lines: first line exactly `---`, closing delimiter the next line exactly `---`, frontmatter between them, body bytes immediately after the newline following the closing delimiter.
@@ -92,7 +92,7 @@ Parse frontmatter as YAML and require a mapping. Unknown fields are allowed. If 
 Print:
 
 ```text
--- deep-plan-import-plan [4/7] Parsing bundle sections --
+-- deep-plan-import-plan [4/8] Parsing bundle sections --
 ```
 
 Parse body section markers using `skills/deep-plan/references/handoff-schema.md` as source of truth. Recognized marker lines are exactly:
@@ -123,7 +123,7 @@ Record `ACTUAL_SECTIONS` as unique winning markers in encounter order, `DUPLICAT
 Print:
 
 ```text
--- deep-plan-import-plan [5/7] Validation Contract --
+-- deep-plan-import-plan [5/8] Validation Contract --
 ```
 
 Apply all nine checks from `handoff-schema.md` in this order. Report each as `[OK]`, `[WARN]`, or `[FAIL]`. Fatal failures prevent writes and prevent reviewer spawn.
@@ -165,7 +165,7 @@ Import validation failed. No files written. No feasibility reviewer spawned.
 Print:
 
 ```text
--- deep-plan-import-plan [6/7] Target resolution --
+-- deep-plan-import-plan [6/8] Target resolution --
 ```
 
 Always run this phase after the Validation Contract passes. `--dry-run` stops after this phase; non-dry-run proceeds to landing.
@@ -222,7 +222,7 @@ Then stop. `--dry-run` must not call Write, create directories, amend `.planning
 Print:
 
 ```text
--- deep-plan-import-plan [7/7] Byte-for-byte landing --
+-- deep-plan-import-plan [7/8] Byte-for-byte landing --
 ```
 
 Continue only when `--dry-run` is absent, the Validation Contract passed, and target resolution found no fatal collision.
@@ -260,6 +260,79 @@ RESEARCH: {research_target_or_not_included}
 Pre-amend byte identity: verified
 ```
 
+### Phase 8: Best-Effort Provenance Amend
+
+Print:
+
+```text
+-- deep-plan-import-plan [8/8] Best-effort provenance amend --
+```
+
+Run this as a separate, auditable step after the Unit 2 byte-identity assertion. This frontmatter mutation does not violate the import invariant: import landed PLAN content byte-for-byte first; provenance is appended afterward as metadata.
+
+Amend the landed `PLAN_TARGET` frontmatter:
+
+1. Parse the landed PLAN frontmatter as YAML.
+2. Create `routing` and `routing.handoff_chain` when missing.
+3. Append one `imported` entry:
+
+   ```yaml
+   - model: "{importing_model}"
+     plugin: "deep-plan@{version}"
+     action: "imported"
+     ts: "{UTC ISO-8601 timestamp}"
+   ```
+
+4. `importing_model` is the model/tool executing import. Use the active host model identifier when available; otherwise use `unknown-importer`.
+5. `{version}` comes from `.claude-plugin/plugin.json`; if unavailable, use `unknown`.
+6. Keep only the last five `routing.handoff_chain` entries. When appending a sixth entry, drop the oldest entry from the front before writing.
+7. A `--no-review` import records nothing extra in the chain. Do not add a skipped-review signal.
+8. Unit 4 will append a second entry with `action: reviewed` and the actual reviewer model when feasibility review runs. A reviewed import therefore consumes two of the five slots.
+
+If the chain amend fails after successful landing, print:
+
+```text
+[WARN] Provenance amend failed: plan landed without routing.handoff_chain provenance.
+Import landing remains complete; amend failed. No rollback performed.
+```
+
+Then stop with failure scoped to the amend step only. Do not delete or rewrite landed PLAN, CONTEXT, or RESEARCH files.
+
+Mirror the import event into `.planning/config.json` `_telemetry.handoff[]` after the chain amend succeeds:
+
+```json
+{
+  "phase_id": "{PHASE_ID}",
+  "direction": "import",
+  "source": "{source_model from bundle frontmatter}",
+  "ts": "{same UTC ISO-8601 timestamp as imported chain entry}",
+  "bundle_path": "{repo-relative bundle path}"
+}
+```
+
+Use the Step 9.5 structured JSON parse-update-write pattern:
+
+1. Parse `.planning/config.json` as JSON.
+2. Create `_telemetry` when missing.
+3. Create `_telemetry.handoff` as an array when missing.
+4. Append the import object.
+5. Preserve all existing `_telemetry.handoff` entries and unrelated keys.
+6. Write the updated JSON back only after the parse/update succeeds.
+
+If `.planning/config.json` is malformed, do not rewrite it. Print:
+
+```text
+[WARN] .planning/config.json malformed; import landed and handoff_chain was amended but _telemetry.handoff was skipped. Run /deep-plan-doctor.
+```
+
+Finish Unit 3 with:
+
+```text
+Provenance amend complete.
+routing.handoff_chain: imported entry appended, max 5 retained
+_telemetry.handoff: import event appended
+```
+
 ## Validation Checklist
 
 After editing this command file, verify:
@@ -273,6 +346,10 @@ grep -q "init plan-phase" commands/deep-plan-import-plan.md
 grep -q "force" commands/deep-plan-import-plan.md
 grep -q "source_repo_id" commands/deep-plan-import-plan.md
 grep -qi "byte" commands/deep-plan-import-plan.md
+grep -q "handoff_chain" commands/deep-plan-import-plan.md
+grep -q "_telemetry.handoff" commands/deep-plan-import-plan.md
+grep -qi "best-effort" commands/deep-plan-import-plan.md
+grep -q "imported" commands/deep-plan-import-plan.md
 grep -q "Files written: 0" commands/deep-plan-import-plan.md
 grep -q "Feasibility reviewers spawned: 0" commands/deep-plan-import-plan.md
 ```
@@ -281,6 +358,8 @@ For `--dry-run`, inspect that the command runs all nine Validation Contract chec
 
 For Unit 2, inspect that the command ignores `expected_phase_dir`, resolves from `phase_id`, refuses target collisions unless `--force` is given, warns and proceeds on foreign `source_repo_id`, writes PLAN and CONTEXT byte-for-byte, writes RESEARCH only when included, and records the post-write pre-amend byte-identity state as the atomic success boundary.
 
+For Unit 3, inspect that provenance is a separate best-effort step after byte identity, appends an `imported` `routing.handoff_chain` entry capped to five with oldest dropped first, documents the future `reviewed` second entry, appends `_telemetry.handoff`, skips malformed config writes with a warning, records no skipped-review marker for `--no-review`, and never rolls back landed files on amend failure.
+
 ## Output Discipline
 
 - Keep the banner and `-- deep-plan-import-plan [N/TOTAL]` step headers stable.
@@ -288,3 +367,4 @@ For Unit 2, inspect that the command ignores `expected_phase_dir`, resolves from
 - Never rewrite imported plan content during validation or dry-run.
 - Never use `original_paths` as the primary target resolver; use `phase_id`.
 - Never modify `.planning/`, global Claude, Codex, GSD, or shell configuration during `--dry-run`.
+- Treat landed bytes as the atomic success boundary; provenance amend failures warn and never roll back landing.
