@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Bash, Glob, AskUserQuestion
 
 # /deep-plan:import-plan Command
 
-Import a portable handoff bundle produced by `/deep-plan:export-plan`. Validate it against `skills/deep-plan/references/handoff-schema.md`, resolve the receiving phase target, land phase artifacts byte-for-byte, and hand off to later provenance/review phases.
+Import a portable handoff bundle produced by `/deep-plan:export-plan`. Validate it against `skills/deep-plan/references/handoff-schema.md`, resolve the receiving phase target, land phase artifacts byte-for-byte, append provenance, and run a default feasibility review.
 
 This command is project-local. In `--dry-run`, it reads the bundle and `.planning/`, reports validation, target collisions, and foreign-repo warnings, writes nothing, and spawns no subagent.
 
@@ -31,7 +31,7 @@ Print:
 Then print:
 
 ```text
--- deep-plan-import-plan [1/8] Prerequisites --
+-- deep-plan-import-plan [1/9] Prerequisites --
 ```
 
 Verify before reading the bundle:
@@ -52,7 +52,7 @@ Do not write any file before this prerequisite gate passes.
 Print:
 
 ```text
--- deep-plan-import-plan [2/8] Argument parsing --
+-- deep-plan-import-plan [2/9] Argument parsing --
 ```
 
 Parse `$ARGUMENTS`:
@@ -70,7 +70,7 @@ Reject: unknown flags (`Unknown argument: {flag}`), missing path (print usage), 
 Print:
 
 ```text
--- deep-plan-import-plan [3/8] Reading bundle --
+-- deep-plan-import-plan [3/9] Reading bundle --
 ```
 
 Read the bundle file verbatim. Split YAML frontmatter only on leading delimiter lines: first line exactly `---`, closing delimiter the next line exactly `---`, frontmatter between them, body bytes immediately after the newline following the closing delimiter.
@@ -92,7 +92,7 @@ Parse frontmatter as YAML and require a mapping. Unknown fields are allowed. If 
 Print:
 
 ```text
--- deep-plan-import-plan [4/8] Parsing bundle sections --
+-- deep-plan-import-plan [4/9] Parsing bundle sections --
 ```
 
 Parse body section markers using `skills/deep-plan/references/handoff-schema.md` as source of truth. Recognized marker lines are exactly:
@@ -123,7 +123,7 @@ Record `ACTUAL_SECTIONS` as unique winning markers in encounter order, `DUPLICAT
 Print:
 
 ```text
--- deep-plan-import-plan [5/8] Validation Contract --
+-- deep-plan-import-plan [5/9] Validation Contract --
 ```
 
 Apply all nine checks from `handoff-schema.md` in this order. Report each as `[OK]`, `[WARN]`, or `[FAIL]`. Fatal failures prevent writes and prevent reviewer spawn.
@@ -165,7 +165,7 @@ Import validation failed. No files written. No feasibility reviewer spawned.
 Print:
 
 ```text
--- deep-plan-import-plan [6/8] Target resolution --
+-- deep-plan-import-plan [6/9] Target resolution --
 ```
 
 Always run this phase after the Validation Contract passes. `--dry-run` stops after this phase; non-dry-run proceeds to landing.
@@ -222,7 +222,7 @@ Then stop. `--dry-run` must not call Write, create directories, amend `.planning
 Print:
 
 ```text
--- deep-plan-import-plan [7/8] Byte-for-byte landing --
+-- deep-plan-import-plan [7/9] Byte-for-byte landing --
 ```
 
 Continue only when `--dry-run` is absent, the Validation Contract passed, and target resolution found no fatal collision.
@@ -265,7 +265,7 @@ Pre-amend byte identity: verified
 Print:
 
 ```text
--- deep-plan-import-plan [8/8] Best-effort provenance amend --
+-- deep-plan-import-plan [8/9] Best-effort provenance amend --
 ```
 
 Run this as a separate, auditable step after the Unit 2 byte-identity assertion. This frontmatter mutation does not violate the import invariant: import landed PLAN content byte-for-byte first; provenance is appended afterward as metadata.
@@ -287,7 +287,7 @@ Amend the landed `PLAN_TARGET` frontmatter:
 5. `{version}` comes from `.claude-plugin/plugin.json`; if unavailable, use `unknown`.
 6. Keep only the last five `routing.handoff_chain` entries. When appending a sixth entry, drop the oldest entry from the front before writing.
 7. A `--no-review` import records nothing extra in the chain. Do not add a skipped-review signal.
-8. Unit 4 will append a second entry with `action: reviewed` and the actual reviewer model when feasibility review runs. A reviewed import therefore consumes two of the five slots.
+8. Phase 9 appends a second entry with `action: reviewed` and the actual reviewer model when feasibility review runs. A reviewed import therefore consumes two of the five slots.
 
 If the chain amend fails after successful landing, print:
 
@@ -333,6 +333,74 @@ routing.handoff_chain: imported entry appended, max 5 retained
 _telemetry.handoff: import event appended
 ```
 
+### Phase 9: Automatic Feasibility Review
+
+Print:
+
+```text
+-- deep-plan-import-plan [9/9] Automatic feasibility review --
+```
+
+Run review by default on every non-dry-run import after provenance amend. `--dry-run` never reaches this step and never spawns a reviewer. If `--no-review` is present, print and finish without writing a report or adding a `reviewed` chain entry:
+
+```text
+Feasibility review skipped by --no-review.
+```
+
+Select `feasibility_model`:
+
+1. If `--review` is present, force `feasibility_model="opus"` regardless of routing, preserving the Phase 11 explicit-review rule.
+2. Otherwise, reuse the SKILL.md Step 9.5 routing decision against the landed PLAN.md frontmatter: score volume, structure, and risk; combine them by quadratic norm; apply bias-adjusted thresholds; use the resulting routed model.
+3. Keep the routing decision in memory for the review banner and report metadata.
+
+Write the review report beside the landed plan under `.planning/phases/`:
+
+```text
+{phase_dir}/{padded_phase}-{NN}-IMPORT-REVIEW.md
+```
+
+Canonical path shape: `.planning/phases/{phase_dir}/{padded_phase}-{NN}-IMPORT-REVIEW.md`.
+
+Spawn the CE feasibility reviewer with the Step 11 shape:
+
+```text
+Agent(
+  subagent_type="compound-engineering:ce-feasibility-reviewer",
+  model: "{feasibility_model}",
+  description="Feasibility review for {landed PLAN path}",
+  prompt="Review this imported plan for feasibility against the receiving repository.
+
+  Plan: {landed PLAN path}
+  Codebase: {project root}
+
+  Focus on:
+  1. Will the implementation order work given actual code dependencies?
+  2. Are there build or host issues the plan misses?
+  3. Are file paths and code references accurate?
+  4. Are risks realistic and mitigations sufficient?
+
+  Be critical. Flag anything that would fail during implementation."
+)
+```
+
+Route findings by severity with the import-specific D-08 divergence:
+
+- HIGH: report prominently, write the full finding to the IMPORT-REVIEW report, and append a second `routing.handoff_chain` entry with `action: reviewed`, `model: "{feasibility_model}"`, `plugin: "deep-plan@{version}"`, and `ts`. Never auto-revise the landed PLAN.md. Auto-revision is unsafe for a plan authored by another model; users who want revision should deliberately run `/deep-plan {phase} --review`. This preserves the landed-plan byte identity established before amend.
+- MODERATE: surface as non-blocking warnings and include them in the report.
+- LOW: summarize one line each in the report and output.
+
+When the review runs, use the same Unit 3 chain-amend rules for the `reviewed` entry: append after `imported`, cap the chain at five, and drop the oldest from the front when adding a sixth entry. A reviewed import consumes two chain slots.
+
+Finish with:
+
+```text
+Feasibility review complete.
+Reviewer model: {feasibility_model}
+Report: {review_report_path}
+Findings: {high} HIGH | {moderate} MODERATE | {low} LOW
+Auto-revision: never for imported plans
+```
+
 ## Validation Checklist
 
 After editing this command file, verify:
@@ -350,6 +418,10 @@ grep -q "handoff_chain" commands/deep-plan-import-plan.md
 grep -q "_telemetry.handoff" commands/deep-plan-import-plan.md
 grep -qi "best-effort" commands/deep-plan-import-plan.md
 grep -q "imported" commands/deep-plan-import-plan.md
+grep -q "ce-feasibility-reviewer" commands/deep-plan-import-plan.md
+grep -q "no-review" commands/deep-plan-import-plan.md
+grep -q "IMPORT-REVIEW" commands/deep-plan-import-plan.md
+grep -qi "never" commands/deep-plan-import-plan.md
 grep -q "Files written: 0" commands/deep-plan-import-plan.md
 grep -q "Feasibility reviewers spawned: 0" commands/deep-plan-import-plan.md
 ```
@@ -358,7 +430,9 @@ For `--dry-run`, inspect that the command runs all nine Validation Contract chec
 
 For Unit 2, inspect that the command ignores `expected_phase_dir`, resolves from `phase_id`, refuses target collisions unless `--force` is given, warns and proceeds on foreign `source_repo_id`, writes PLAN and CONTEXT byte-for-byte, writes RESEARCH only when included, and records the post-write pre-amend byte-identity state as the atomic success boundary.
 
-For Unit 3, inspect that provenance is a separate best-effort step after byte identity, appends an `imported` `routing.handoff_chain` entry capped to five with oldest dropped first, documents the future `reviewed` second entry, appends `_telemetry.handoff`, skips malformed config writes with a warning, records no skipped-review marker for `--no-review`, and never rolls back landed files on amend failure.
+For Unit 3, inspect that provenance is a separate best-effort step after byte identity, appends an `imported` `routing.handoff_chain` entry capped to five with oldest dropped first, documents the `reviewed` second entry, appends `_telemetry.handoff`, skips malformed config writes with a warning, records no skipped-review marker for `--no-review`, and never rolls back landed files on amend failure.
+
+For Unit 4, inspect that review runs by default, `--no-review` skips it, `--dry-run` never spawns it, `--review` forces opus, default review uses Step 9.5 routing, HIGH findings are reported and recorded without ever rewriting the landed plan, MODERATE/LOW handling follows Step 11, the IMPORT-REVIEW report path sits beside the landed plan, and review appends a `reviewed` chain entry naming the reviewer model.
 
 ## Output Discipline
 
