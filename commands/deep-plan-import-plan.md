@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Bash, Glob, AskUserQuestion
 
 # /deep-plan:import-plan Command
 
-Import a portable handoff bundle produced by `/deep-plan:export-plan`. Validate it against `skills/deep-plan/references/handoff-schema.md`, resolve the receiving phase target, and hand off to later landing/provenance/review phases.
+Import a portable handoff bundle produced by `/deep-plan:export-plan`. Validate it against `skills/deep-plan/references/handoff-schema.md`, resolve the receiving phase target, land phase artifacts byte-for-byte, and hand off to later provenance/review phases.
 
 This command is project-local. In `--dry-run`, it reads the bundle and `.planning/`, reports validation, target collisions, and foreign-repo warnings, writes nothing, and spawns no subagent.
 
@@ -160,34 +160,49 @@ If any `[FAIL]` exists after check 9, print and stop:
 Import validation failed. No files written. No feasibility reviewer spawned.
 ```
 
-### Phase 6: Dry-Run Target Scan
+### Phase 6: Target Resolution
 
 Print:
 
 ```text
--- deep-plan-import-plan [6/7] Dry-run target scan --
+-- deep-plan-import-plan [6/7] Target resolution --
 ```
 
-Always run this scan for `--dry-run`. For non-dry-run execution, run the same scan before later landing.
+Always run this phase after the Validation Contract passes. `--dry-run` stops after this phase; non-dry-run proceeds to landing.
 
 Resolve the receiving target from `phase_id`, not `original_paths`:
 
 1. Run `node ~/.claude/get-shit-done/bin/gsd-tools.cjs init plan-phase "$PHASE_ID" 2>/dev/null`.
-2. Use returned `phase_dir` when present; otherwise construct `.planning/phases/{phase_id}`.
-3. Derive phase number from the leading number in `phase_id`; derive padded prefix from existing plan files or by zero-padding the phase number.
-4. Pick the next `{padded_phase}-{NN}-PLAN.md` by max existing plan number plus one, starting at `01`.
-5. Resolve CONTEXT as `{phase_dir}/{phase_number}-CONTEXT.md`; resolve RESEARCH only when listed in `sections_included`.
+2. Ignore `expected_phase_dir`; on this GSD build it is `null` and must not drive imports.
+3. When the JSON reports the phase already exists, use the returned `phase_dir`.
+4. When the phase is absent, construct `PHASE_DIR=.planning/phases/{phase_id}` directly from bundle frontmatter.
+5. Derive phase number from the leading number in `phase_id`; derive `PADDED_PHASE` from existing plan files when present, otherwise zero-pad the phase number.
+6. Pick the next `{padded_phase}-{NN}-PLAN.md` by applying the `plan-template.md` rule: list existing `{padded_phase}-*-PLAN.md`, extract `NN`, sort numerically, add one, zero-pad to two digits, start at `01` when none exist.
+7. Resolve `PLAN_TARGET={phase_dir}/{padded_phase}-{NN}-PLAN.md`.
+8. Resolve `CONTEXT_TARGET={phase_dir}/{padded_phase}-CONTEXT.md`.
+9. Resolve `RESEARCH_TARGET={phase_dir}/{padded_phase}-RESEARCH.md` only when `RESEARCH` is listed in `sections_included`.
 
-Report target collisions:
+Use `original_paths` only as a fallback clue when `phase_id` cannot be parsed enough to derive the phase number; warn before doing so. Otherwise treat `original_paths` as provenance only. Never path-remap a foreign repository bundle.
+
+Report target collisions before creating directories or writing bytes:
 
 - Without `--force`: `[WARN] Target collision: {path} exists. Real import will refuse unless --force is given.`
 - With `--force`: `[WARN] Target collision: {path} exists. --force means real import will overwrite it.`
+
+Check every artifact path that will be written. A next-numbered PLAN usually avoids a plan collision, but an existing CONTEXT or RESEARCH path is still a collision. For non-dry-run without `--force`, any collision is fatal. Print and stop before writing anything:
+
+```text
+[FAIL] Target collision: {path} exists. Re-run with --force to overwrite.
+Import refused. No files written.
+```
 
 Compute local `source_repo_id` as `sha256(git remote get-url origin)[:12]`, or `local-no-origin` when no origin exists. If it differs from the bundle, report:
 
 ```text
 [WARN] Foreign source_repo_id: bundle has {bundle_source_repo_id}; local repo is {local_source_repo_id}. Import will proceed by phase_id, not original_paths.
 ```
+
+Record the mismatch details for the Unit 3 `routing.handoff_chain` entry, but do not block and do not remap paths.
 
 For `--dry-run`, finish after this scan:
 
@@ -202,15 +217,48 @@ Feasibility reviewers spawned: 0
 
 Then stop. `--dry-run` must not call Write, create directories, amend `.planning/config.json`, or spawn `compound-engineering:ce-feasibility-reviewer` or any other subagent.
 
-### Phase 7: Landing Hand-Off
+### Phase 7: Byte-for-Byte Landing
 
 Print:
 
 ```text
--- deep-plan-import-plan [7/7] Landing --
+-- deep-plan-import-plan [7/7] Byte-for-byte landing --
 ```
 
-If `--dry-run` is absent, continue only after the Validation Contract and target scan have succeeded. Landing, provenance amend, and feasibility review are implemented by later import phases. Until those phases are present, do not invent landing behavior.
+Continue only when `--dry-run` is absent, the Validation Contract passed, and target resolution found no fatal collision.
+
+Create `PHASE_DIR` only after collision checks pass. When `--force` is present, overwrite existing target files only after the collision warning above. Then write section bytes captured by the Unit 1 parser:
+
+- Write `SECTION_BYTES[PLAN]` to `PLAN_TARGET`.
+- Write `SECTION_BYTES[CONTEXT]` to `CONTEXT_TARGET`.
+- Write `SECTION_BYTES[RESEARCH]` to `RESEARCH_TARGET` only when `RESEARCH` is listed in `sections_included`.
+- Do not write `INTEL_SUMMARY` as a phase artifact in Unit 2.
+- Do not synthesize placeholder files for absent optional sections.
+- Do not rewrite any path, frontmatter field, `@` reference, or content inside the landed PLAN bytes. Landing is verbatim; PORT-01 applies only to command-authored references elsewhere, never to imported plan content.
+
+Immediately after each write, assert byte identity against the parsed section bytes:
+
+```text
+[OK] Byte identity: {target_path} matches parsed {section_name} section bytes.
+```
+
+If a byte-identity assertion fails, stop and report the affected path:
+
+```text
+[FAIL] Byte identity: {target_path} differs from parsed {section_name} section bytes.
+```
+
+The post-write, pre-amend byte-identity state is the atomic success boundary. Later Unit 3 provenance amend is best-effort metadata and must not be confused with this landing result.
+
+Finish Unit 2 landing with:
+
+```text
+Import landing complete.
+PLAN: {plan_target}
+CONTEXT: {context_target}
+RESEARCH: {research_target_or_not_included}
+Pre-amend byte identity: verified
+```
 
 ## Validation Checklist
 
@@ -221,11 +269,17 @@ grep -q "import-plan" commands/deep-plan-import-plan.md
 grep -q "Validation Contract" commands/deep-plan-import-plan.md
 grep -q "AskUserQuestion" commands/deep-plan-import-plan.md
 grep -qi "fence" commands/deep-plan-import-plan.md
+grep -q "init plan-phase" commands/deep-plan-import-plan.md
+grep -q "force" commands/deep-plan-import-plan.md
+grep -q "source_repo_id" commands/deep-plan-import-plan.md
+grep -qi "byte" commands/deep-plan-import-plan.md
 grep -q "Files written: 0" commands/deep-plan-import-plan.md
 grep -q "Feasibility reviewers spawned: 0" commands/deep-plan-import-plan.md
 ```
 
 For `--dry-run`, inspect that the command runs all nine Validation Contract checks, reports target collisions and foreign `source_repo_id` warnings, writes nothing, creates no directories, and spawns no feasibility reviewer or subagent.
+
+For Unit 2, inspect that the command ignores `expected_phase_dir`, resolves from `phase_id`, refuses target collisions unless `--force` is given, warns and proceeds on foreign `source_repo_id`, writes PLAN and CONTEXT byte-for-byte, writes RESEARCH only when included, and records the post-write pre-amend byte-identity state as the atomic success boundary.
 
 ## Output Discipline
 
