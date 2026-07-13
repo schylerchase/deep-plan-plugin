@@ -20,7 +20,7 @@ Validation: integer `>= 1`. Invalid values fall back to `1` with a banner notice
 
 ### mode
 
-Type: `"auto" | "confirm" | "silent"`. Default `"confirm"` per D-04 mode×pin orthogonality discussion. Per Phase 8 D-02: auto = banner only, confirm = AskuserQuestion, silent = no advisory output. The `--text` flag overlays mode with numbered-list fallback per Phase 2.
+Type: `"auto" | "confirm" | "silent"`. Default `"confirm"` per D-04 mode×pin orthogonality discussion. Per Phase 8 D-02: auto = banner only, confirm = AskUserQuestion, silent = no advisory output. The `--text` flag overlays mode with numbered-list fallback per Phase 2.
 
 - **D-05 mode-pin orthogonality note:** When `pin` is set AND advisory triggers (180k input + high complexity per Phase 8 D-01), the `mode=confirm` path collapses to `mode=auto` behavior — the confirm prompt is moot because there is no alternative to switch to. The banner appends the literal notice `pinned — confirm prompt suppressed` so the user sees why no prompt fired.
 

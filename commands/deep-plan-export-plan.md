@@ -2,7 +2,7 @@
 name: deep-plan-export-plan
 description: Export phase artifacts as portable handoff bundle for cross-model planning workflows
 argument-hint: "[phase] [--target=<model>] [--out=<path>] [--minimal]"
-allowed-tools: Read, Write, Bash, Glob, AskuserQuestion
+allowed-tools: Read, Write, Bash, Glob, AskUserQuestion
 ---
 
 # /deep-plan:export-plan Command
@@ -68,7 +68,7 @@ Detect text mode with:
 TEXT_MODE=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get workflow.text_mode 2>/dev/null || echo false)
 ```
 
-When text mode is active, render any choice as a numbered list instead of `AskuserQuestion`.
+When text mode is active, render any choice as a numbered list instead of `AskUserQuestion`.
 
 ### Phase 3: Phase Resolution
 
