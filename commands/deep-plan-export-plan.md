@@ -5,7 +5,7 @@ argument-hint: "[phase] [--target=<model>] [--out=<path>] [--minimal]"
 allowed-tools: Read, Write, Bash, Glob, AskuserQuestion
 ---
 
-# /deep-plan:export-plan Command
+# /deep-plan-export-plan Command
 
 Export a phase's planning artifacts into a single portable handoff bundle. The bundle is meant for cross-model workflows: plan in one tool, execute or review in another.
 
@@ -13,11 +13,11 @@ This command is project-local. It reads `.planning/phases/`, optional `.planning
 
 ## Usage
 
-- `/deep-plan:export-plan 13`
-- `/deep-plan:export-plan 13 --target=codex`
-- `/deep-plan:export-plan 13 --minimal`
-- `/deep-plan:export-plan 13 --out=/tmp/phase-13.handoff.md`
-- `/deep-plan:export-plan` to auto-detect the latest unexported phase
+- `/deep-plan-export-plan 13`
+- `/deep-plan-export-plan 13 --target=codex`
+- `/deep-plan-export-plan 13 --minimal`
+- `/deep-plan-export-plan 13 --out=/tmp/phase-13.handoff.md`
+- `/deep-plan-export-plan` to auto-detect the latest unexported phase
 
 ## Instructions
 
@@ -27,8 +27,8 @@ Print:
 
 ```text
 ╔══════════════════════════════════════════════════╗
-║   Deep Plan - Export Bundle                     ║
-║   Phase artifacts -> portable handoff format    ║
+║   Deep Plan - Export Bundle                      ║
+║   Phase artifacts -> portable handoff format     ║
 ╚══════════════════════════════════════════════════╝
 ```
 
@@ -37,9 +37,13 @@ Then verify prerequisites:
 ```bash
 test -d .planning
 test -d .planning/phases
-test -f skills/deep-plan/references/handoff-schema.md
-test -f skills/deep-plan/references/intel-distill.md
+PLUGIN_REFS="skills/deep-plan/references"
+[ -f "$PLUGIN_REFS/handoff-schema.md" ] || PLUGIN_REFS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/deep-plan-plugin/skills/deep-plan/references"
+test -f "$PLUGIN_REFS/handoff-schema.md"
+test -f "$PLUGIN_REFS/intel-distill.md"
 ```
+
+The repo-relative path only exists when running inside the plugin repository itself; the fallback resolves the installed plugin's marketplace copy, matching `/deep-plan-doctor` conventions. Use `$PLUGIN_REFS` for every later read of `handoff-schema.md` and `intel-distill.md` in this run.
 
 If `.planning/` or `.planning/phases/` is missing, stop with:
 
@@ -204,18 +208,21 @@ Compose the bundle exactly:
 
 ## --- BUNDLE SECTION: PLAN ---
 {verbatim PLAN.md content}
-
 ## --- BUNDLE SECTION: CONTEXT ---
 {verbatim CONTEXT.md content}
-
 ## --- BUNDLE SECTION: RESEARCH ---
 {verbatim RESEARCH.md content, if included}
-
 ## --- BUNDLE SECTION: INTEL_SUMMARY ---
 {distilled intel summary, if included}
 ```
 
-The content starts immediately after each marker line. The `PLAN` and `CONTEXT` section bodies must preserve bytes from the source files, including frontmatter, indentation, blank lines, and trailing newlines. Validators must ignore marker-looking lines inside fenced code blocks when checking byte identity.
+The content starts immediately after each marker line. The `PLAN` and `CONTEXT` section bodies must preserve bytes from the source files, including frontmatter, indentation, blank lines, and trailing newlines. Insert no separator bytes between a section's content and the next marker line: a section's final byte is its source file's final byte, and the next marker line begins on the line immediately after it. Every included source artifact must end with a trailing newline. If one does not, stop with:
+
+```text
+{path} does not end with a trailing newline. Add one before exporting; the byte-exact round-trip depends on it.
+```
+
+The distilled intel summary must also end with exactly one trailing newline. Validators must ignore marker-looking lines inside fenced code blocks when checking byte identity.
 
 ### Phase 6: Write, Telemetry, Output
 
@@ -259,7 +266,7 @@ Bundle ready: {output_path} ({size} KB)
 
 Receiving model usage:
   Codex CLI:    codex chat < {output_path}
-  Claude Code:  /deep-plan:import-plan {output_path}
+  Claude Code:  /deep-plan-import-plan {output_path}
   Other:        Paste bundle contents into chat with: "Implement this plan."
 ```
 
@@ -273,6 +280,8 @@ grep -q 'bundle_version: "1.0"' "$OUTPUT_PATH"
 grep -q 'BUNDLE SECTION: PLAN' "$OUTPUT_PATH"
 grep -q 'BUNDLE SECTION: CONTEXT' "$OUTPUT_PATH"
 grep -q 'target_model_hint:' "$OUTPUT_PATH"
+[ "$(tail -c 1 "$PLAN_PATH" | wc -l | tr -d ' ')" -eq 1 ]
+[ "$(tail -c 1 "$CONTEXT_PATH" | wc -l | tr -d ' ')" -eq 1 ]
 grep -q '_telemetry.handoff' skills/deep-plan/references/config.md
 grep -q 'handoff_chain' "$PLAN_PATH"
 ```

@@ -2,18 +2,18 @@
 name: deep-plan-import-plan
 description: Import a portable deep-plan handoff bundle into landed phase artifacts after schema validation
 argument-hint: "[path] [--dry-run] [--force] [--no-review] [--review]"
-allowed-tools: Read, Write, Bash, Glob, AskUserQuestion
+allowed-tools: Read, Write, Bash, Glob, Agent
 ---
 
-# /deep-plan:import-plan Command
+# /deep-plan-import-plan Command
 
-Import a portable handoff bundle produced by `/deep-plan:export-plan`. Validate it against `skills/deep-plan/references/handoff-schema.md`, resolve the receiving phase target, land phase artifacts byte-for-byte, append provenance, and run a default feasibility review.
+Import a portable handoff bundle produced by `/deep-plan-export-plan`. Validate it against `skills/deep-plan/references/handoff-schema.md`, resolve the receiving phase target, land phase artifacts byte-for-byte, append provenance, and run a default feasibility review.
 
 This command is project-local. In `--dry-run`, it reads the bundle and `.planning/`, reports validation, target collisions, and foreign-repo warnings, writes nothing, and spawns no subagent.
 
 ## Usage
 
-`/deep-plan:import-plan [path] [--dry-run] [--force] [--no-review] [--review]`
+`/deep-plan-import-plan [path] [--dry-run] [--force] [--no-review] [--review]`
 
 ## Instructions
 
@@ -23,8 +23,8 @@ Print:
 
 ```text
 ╔════════════════════════════════════════════════════════════════╗
-║   Deep Plan - Import Bundle                                  ║
-║   Portable handoff format -> landed phase artifacts          ║
+║   Deep Plan - Import Bundle                                    ║
+║   Portable handoff format -> landed phase artifacts            ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
 
@@ -38,12 +38,16 @@ Verify before reading the bundle:
 
 ```bash
 test -d .planning
-test -f skills/deep-plan/references/handoff-schema.md
+SCHEMA_PATH="skills/deep-plan/references/handoff-schema.md"
+[ -f "$SCHEMA_PATH" ] || SCHEMA_PATH="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/deep-plan-plugin/skills/deep-plan/references/handoff-schema.md"
+test -f "$SCHEMA_PATH"
 ```
+
+The repo-relative path only exists when running inside the plugin repository itself; the fallback resolves the installed plugin's marketplace copy, matching `/deep-plan-doctor` conventions. Use `$SCHEMA_PATH` for every later read of `handoff-schema.md` in this run.
 
 If `.planning/` is missing, stop: `No .planning directory found. Run from a GSD project root.`
 
-If `handoff-schema.md` is missing, stop: `handoff-schema.md not found. Reinstall or repair the deep-plan plugin before importing.`
+If `handoff-schema.md` resolves at neither path, stop: `handoff-schema.md not found. Reinstall or repair the deep-plan plugin before importing.`
 
 Do not write any file before this prerequisite gate passes.
 
@@ -115,6 +119,8 @@ Walk the body line by line while preserving original bytes:
 7. Preserve every byte after each winning marker line until the next winning marker line, including frontmatter, indentation, blank lines, duplicate marker lines, in-fence decoys, and trailing newlines.
 
 This fence awareness is load-bearing. The round-trip fixture embeds decoy `## --- BUNDLE SECTION: ... ---` lines inside a fenced block; a naive grep or split would end the PLAN section too early.
+
+A schema-compliant bundle contains no separator bytes between sections: the bytes preserved under rule 7 are exactly the source artifact's bytes, including its final trailing newline, and the next marker line begins immediately after that newline. Do not strip or normalize anything before a marker line — if a section appears to end with extra blank lines, those blank lines are source bytes.
 
 Record `ACTUAL_SECTIONS` as unique winning markers in encounter order, `DUPLICATE_SECTION_WARNINGS` as duplicate real markers seen outside fences, and `SECTION_BYTES[...]` for winning markers only. Do not consume or trust section content until the Validation Contract passes.
 
@@ -333,6 +339,12 @@ routing.handoff_chain: imported entry appended, max 5 retained
 _telemetry.handoff: import event appended
 ```
 
+When telemetry was skipped because `.planning/config.json` is malformed, replace the last line with:
+
+```text
+_telemetry.handoff: skipped (malformed .planning/config.json)
+```
+
 ### Phase 9: Automatic Feasibility Review
 
 Print:
@@ -359,7 +371,7 @@ Write the review report beside the landed plan under `.planning/phases/`:
 {phase_dir}/{padded_phase}-{NN}-IMPORT-REVIEW.md
 ```
 
-Canonical path shape: `.planning/phases/{phase_dir}/{padded_phase}-{NN}-IMPORT-REVIEW.md`.
+Canonical path shape: `.planning/phases/{phase_id}/{padded_phase}-{NN}-IMPORT-REVIEW.md` — identical to the `{phase_dir}/...` template above, since `{phase_dir}` already includes the `.planning/phases/` prefix.
 
 Spawn the CE feasibility reviewer with the Step 11 shape:
 
