@@ -157,10 +157,6 @@ If found, run these checks with the same `[N/7]` output format:
 - Otherwise: `[OK] model_routing present; GSD profile unchanged ({profile}).`
 
 **Check 7/7: handoff chain and telemetry health**
-- Print:
-  ```
-  ── deep-plan-doctor [7/7] handoff chain and telemetry health ──
-  ```
 - Inspect committed/local PLAN artifacts only: glob `.planning/phases/**/*.md` and evaluate files whose names end in `PLAN.md`.
 - Do **not** inspect or re-parse `.planning/handoff/` bundles; those are outbound artifacts and stale bundles are not an install or project-health defect.
 - For every PLAN.md with `routing.handoff_chain` in frontmatter, parse the chain. If frontmatter or chain parsing fails: `[WARN] {plan_path}: routing.handoff_chain is malformed. Fix the PLAN frontmatter or re-run import/export provenance.`
