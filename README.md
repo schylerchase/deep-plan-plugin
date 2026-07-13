@@ -267,6 +267,35 @@ On first run in a project, `/deep-plan` opens the model-routing setup wizard if 
 
 The wizard writes only `.planning/config.json` and preserves unrelated GSD project settings. It captures `mode`, `pin`, `bias`, the setup-time GSD profile, and optional advanced thresholds/weights.
 
+### Cross-Model Plan Import
+
+Use `/deep-plan-import-plan` on the receiving model to land a portable bundle produced by `/deep-plan-export-plan`.
+
+```bash
+/deep-plan-import-plan path/to/phase.handoff.md
+/deep-plan-import-plan path/to/phase.handoff.md --dry-run
+/deep-plan-import-plan path/to/phase.handoff.md --force
+/deep-plan-import-plan path/to/phase.handoff.md --no-review
+/deep-plan-import-plan path/to/phase.handoff.md --review
+```
+
+Arguments:
+
+- `path` - bundle file to validate and import.
+- `--dry-run` - run schema validation, target resolution, collision checks, and foreign-repo warnings without writing files or spawning a reviewer.
+- `--force` - overwrite resolved targets when collisions exist. Without it, import refuses collisions because `.planning/` is often gitignored.
+- `--no-review` - skip the default feasibility review after landing.
+- `--review` - run the feasibility review on opus explicitly.
+
+Receiving workflow:
+
+1. Move or reference the `.handoff.md` bundle in the receiving repository.
+2. Run `/deep-plan-import-plan <bundle> --dry-run` and inspect validation, collision, and foreign-repo warnings.
+3. Run `/deep-plan-import-plan <bundle>` to land PLAN and CONTEXT byte-for-byte, append provenance, and run the default review.
+4. Use `/gsd-execute-phase` after reviewing any import report.
+
+The command supports text-mode and agent-native operation: flags are plain text, every failure path is a fatal stop with an actionable message (there are no interactive prompts), and the imported plan content remains model-neutral.
+
 ### UX Review
 
 ```bash
@@ -290,7 +319,7 @@ Scans frontend code for UX issues across six dimensions — state design, access
 /deep-plan-doctor --project    # Project-only checks
 ```
 
-Runs install checks (Claude Code version, GSD installed, CE installed, deep-plan agents/skills discoverable, plugin update availability) and project checks (ROADMAP.md parses, phase detection, CONTEXT.md/RESEARCH.md freshness, warm-start intel status). Prints a structured remediation report with critical-vs-warning classification and offers to auto-fix fixable issues (marketplace add, plugin install) only after explicit approval.
+Runs install checks (Claude Code version, GSD installed, CE installed, deep-plan agents/skills discoverable, plugin update availability) and project checks (ROADMAP.md parses, phase detection, CONTEXT.md/RESEARCH.md freshness, warm-start intel status, model-routing config drift, handoff chain and telemetry health). Prints a structured remediation report with critical-vs-warning classification and offers to auto-fix fixable issues (marketplace add, plugin install) only after explicit approval.
 
 Run it when deep-plan feels broken, before running `/deep-plan` for the first time in a new project, or after updating any plugin.
 

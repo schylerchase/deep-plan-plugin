@@ -3,7 +3,7 @@
 ## Status
 
 **Bundle version:** `"1.0"` (initial schema for deep-plan v1.2 cross-model handoff)
-**Loaded by:** `/deep-plan:export-plan` during Phase 13 export; Phase 14 import tooling consumes the same contract.
+**Loaded by:** `/deep-plan-export-plan` during Phase 13 export; Phase 14 import tooling consumes the same contract.
 **Purpose:** Define a single Markdown bundle format that preserves planning artifacts across models and plugins without losing bytes from the required source files.
 
 ## Versioning Rules
@@ -109,14 +109,12 @@ type: execute
 <objective>
 Build the export side of cross-model planning handoff.
 </objective>
-
 ## --- BUNDLE SECTION: CONTEXT ---
 # Phase 13: Bundle Schema + Export - Context
 
 <domain>
 This phase introduces the export side of cross-model planning handoff.
 </domain>
-
 ## --- BUNDLE SECTION: INTEL_SUMMARY ---
 ### Dependencies (top 20)
 
@@ -128,7 +126,7 @@ This phase introduces the export side of cross-model planning handoff.
 
 ### Public APIs
 
-- `/deep-plan:export-plan`
+- `/deep-plan-export-plan`
 
 ### Architecture overview
 
@@ -166,6 +164,8 @@ When `RESEARCH` is present, it is copied verbatim from the source research artif
 ## Round-Trip Guarantee
 
 The bundle is lossless for required planning artifacts. Exporters must copy `PLAN` and `CONTEXT` bytes verbatim into their sections, including frontmatter, blank lines, indentation, and trailing newlines. Importers must write those section bodies back byte-for-byte.
+
+Bundles contain no separator bytes between sections: a section's content ends exactly at its source file's final byte, and the next marker line begins on the line immediately after it. Every source artifact must end with a trailing newline — a file whose last line lacks one would glue the next marker onto that line and break marker recognition. Exporters must reject such artifacts at export time rather than repair them (appending a newline would silently change the bytes the guarantee promises to preserve).
 
 Round-trip guarantee:
 
