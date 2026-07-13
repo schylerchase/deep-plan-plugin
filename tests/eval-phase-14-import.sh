@@ -4,8 +4,15 @@
 #
 # Caveat: the two-stage byte-identity assertion below tests this eval's own
 # reimplemented fence-aware extractor, not the prose command Claude executes at
-# runtime. This departs from the shipped static-grep eval style; a reviewer may
-# prefer spec-presence-only coverage.
+# runtime. The same applies to the amend and chain-cap blocks: they simulate
+# the documented amend/eviction rules in bash to validate fixture shape and
+# consistency with the spec assertions above them, not the prose command's
+# runtime behavior (that requires a live export -> import run). The extractor
+# also diverges from the prose spec on unknown all-caps section markers: the
+# prose recognizes only the four known markers, while this extractor treats
+# any '## --- BUNDLE SECTION: X ---' line as a marker. This departs from the
+# shipped static-grep eval style; a reviewer may prefer spec-presence-only
+# coverage.
 
 set -euo pipefail
 
@@ -13,6 +20,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 COMMAND="$REPO_ROOT/commands/deep-plan-import-plan.md"
+EXPORT="$REPO_ROOT/commands/deep-plan-export-plan.md"
+SCHEMA="$REPO_ROOT/skills/deep-plan/references/handoff-schema.md"
 DOCTOR="$REPO_ROOT/commands/deep-plan-doctor.md"
 FIXTURE_DIR="$REPO_ROOT/skills/deep-plan/fixtures/import"
 ROUNDTRIP_BUNDLE="$FIXTURE_DIR/01-roundtrip-bundle.md"
@@ -40,6 +49,17 @@ assert_contains() {
     pass "$label"
   else
     fail "$label"
+  fi
+}
+
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  local label="$3"
+  if grep -Eq -- "$pattern" "$file"; then
+    fail "$label"
+  else
+    pass "$label"
   fi
 }
 
@@ -159,7 +179,7 @@ assert_file "$CHAIN_BUNDLE" "chain eviction bundle fixture"
 
 assert_contains "$COMMAND" 'name: deep-plan-import-plan' 'import command has frontmatter name'
 assert_contains "$COMMAND" 'argument-hint:.*--dry-run.*--force.*--no-review.*--review' 'import command argument-hint complete'
-assert_contains "$COMMAND" 'allowed-tools:.*AskUserQuestion' 'import command AskUserQuestion casing correct'
+assert_not_contains "$COMMAND" 'AskuserQuestion' 'import command free of AskuserQuestion typo'
 assert_contains "$COMMAND" 'Validation Contract' 'import command documents Validation Contract'
 assert_contains "$COMMAND" 'all nine checks|nine Validation Contract checks' 'import command documents nine checks'
 assert_contains "$COMMAND" 'Fence-Aware|fence-aware|fence awar' 'import command documents fence awareness'
@@ -170,6 +190,12 @@ assert_contains "$COMMAND" 'source_repo_id' 'import command documents foreign re
 assert_contains "$COMMAND" 'Byte identity|byte identity' 'import command documents byte identity'
 assert_contains "$COMMAND" 'best-effort' 'import command documents best-effort amend'
 assert_contains "$COMMAND" '_telemetry\.handoff' 'import command documents handoff telemetry'
+assert_contains "$COMMAND" 'max 5 retained|capped to five' 'import command specifies five-entry chain cap'
+assert_contains "$COMMAND" 'oldest dropped first|oldest.*dropped' 'import command specifies oldest-dropped-first eviction'
+assert_contains "$COMMAND" 'no separator bytes' 'import command documents separator-free sections'
+assert_contains "$EXPORT" 'Insert no separator bytes' 'export command documents separator-free composition'
+assert_contains "$EXPORT" 'must end with a trailing newline' 'export command requires trailing newline on sources'
+assert_contains "$SCHEMA" 'no separator bytes' 'schema documents separator-free sections'
 assert_contains "$COMMAND" 'Run review by default|review by default' 'import command documents default review'
 assert_contains "$COMMAND" '--no-review' 'import command documents --no-review'
 assert_contains "$COMMAND" 'ce-feasibility-reviewer' 'import command documents feasibility reviewer'
@@ -180,7 +206,15 @@ assert_contains "$DOCTOR" 'handoff_chain' 'doctor documents handoff chain health
 assert_contains "$DOCTOR" '_telemetry\.handoff' 'doctor documents handoff telemetry health'
 assert_contains "$DOCTOR" 'Check 7/7' 'doctor includes Tier 2 check 7/7'
 
+if grep -A1 -- '{verbatim PLAN.md content}' "$EXPORT" | grep -q 'BUNDLE SECTION: CONTEXT'; then
+  pass "export compose template has no separator before CONTEXT marker"
+else
+  fail "export compose template has no separator before CONTEXT marker"
+fi
+
 assert_contains "$ROUNDTRIP_BUNDLE" 'sections_included:' 'roundtrip bundle has sections_included'
+assert_contains "$ROUNDTRIP_BUNDLE" 'source_repo_id: "[0-9a-f]{12}"' 'roundtrip bundle source_repo_id is 12-char hex'
+assert_contains "$CHAIN_BUNDLE" 'source_repo_id: "[0-9a-f]{12}"' 'chain bundle source_repo_id is 12-char hex'
 assert_contains "$ROUNDTRIP_BUNDLE" 'BUNDLE SECTION: PLAN' 'roundtrip bundle has PLAN marker'
 assert_contains "$ROUNDTRIP_BUNDLE" 'BUNDLE SECTION: CONTEXT' 'roundtrip bundle has CONTEXT marker'
 assert_contains "$ROUNDTRIP_BUNDLE" '```text' 'roundtrip bundle has fenced decoy block'
@@ -221,7 +255,8 @@ ENTRY
   fi
 done < "$EXTRACTED_PLAN"
 
-assert_contains "$AMENDED_PLAN" 'action: "imported"' 'stage two imported chain entry asserted'
+assert_equals "1" "$inserted" "stage two simulation found the chain anchor in the extracted plan"
+assert_contains "$AMENDED_PLAN" 'action: "imported"' 'stage two simulation output contains the imported entry'
 
 CHAIN_PLAN="$TMP_WORK/chain-plan.md"
 if extract_section "$CHAIN_BUNDLE" "PLAN" "$CHAIN_PLAN"; then
@@ -235,15 +270,15 @@ assert_equals "5" "$entry_count" "chain fixture starts with five handoff entries
 
 ACTIONS="$TMP_WORK/actions.txt"
 CAPPED_ACTIONS="$TMP_WORK/capped-actions.txt"
-grep -E '^[[:space:]]+action: ' "$CHAIN_PLAN" > "$ACTIONS"
+grep -E '^[[:space:]]+action: ' "$CHAIN_PLAN" > "$ACTIONS" || true
 printf '      action: "imported"\n' >> "$ACTIONS"
 tail -5 "$ACTIONS" > "$CAPPED_ACTIONS"
 cap_count="$(wc -l < "$CAPPED_ACTIONS" | tr -d ' ')"
-assert_equals "5" "$cap_count" "chain cap simulation leaves five entries"
+assert_equals "5" "$cap_count" "chain cap simulation (per documented max-5 rule) leaves five entries"
 if grep -q 'action: "planned"' "$CAPPED_ACTIONS"; then
-  fail "chain cap simulation drops oldest planned entry"
+  fail "chain cap simulation (oldest dropped first) evicts the planned entry"
 else
-  pass "chain cap simulation drops oldest planned entry"
+  pass "chain cap simulation (oldest dropped first) evicts the planned entry"
 fi
 
 printf '\nPhase 14 import eval complete\n'

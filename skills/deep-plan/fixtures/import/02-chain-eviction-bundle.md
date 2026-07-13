@@ -2,7 +2,7 @@
 bundle_version: "1.0"
 source_model: "codex-fixture"
 source_plugin: "deep-plan@0.3.0"
-source_repo_id: "fixture000002"
+source_repo_id: "f14eb0e00002"
 exported_at: "2026-04-30T17:00:00Z"
 phase_id: "14-import-fixture-chain-eviction"
 phase_name: "Import Fixture Chain Eviction"

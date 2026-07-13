@@ -2,7 +2,7 @@
 bundle_version: "1.0"
 source_model: "codex-fixture"
 source_plugin: "deep-plan@0.3.0"
-source_repo_id: "fixture000001"
+source_repo_id: "f14eb0e00001"
 exported_at: "2026-04-30T16:20:00Z"
 phase_id: "14-import-fixture-roundtrip"
 phase_name: "Import Fixture Roundtrip"
